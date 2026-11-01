@@ -1,12 +1,14 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   TrendingUp,
-  BarChart3,
   Award,
   Target,
   RefreshCw,
+  Activity,
+  BarChart3,
   PieChart as PieIcon,
-  Activity
+  AlertCircle
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -26,29 +28,25 @@ import {
 import { api } from '../lib/api';
 import { AnalyticsData } from '../types';
 import { formatINR } from '../lib/formatters';
-import { KpiCard } from '../components/ui/KpiCard';
 
 const RISK_COLORS = {
-  high: '#DC2626',
-  medium: '#D97706',
-  low: '#16A34A'
+  high: '#f87171',
+  medium: '#fbbf24',
+  low: '#34d399'
 };
 
 export const AnalyticsPage: React.FC = () => {
   const [data, setData] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadAnalytics();
-  }, []);
 
   const loadAnalytics = async () => {
     setLoading(true);
     setError(null);
+
     try {
-      const res = await api.getAnalytics();
-      setData(res);
+      const result = await api.getAnalytics();
+      setData(result);
     } catch (err: any) {
       setError(err.message || 'Failed to load analytics data.');
     } finally {
@@ -56,233 +54,390 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
+
   if (loading) {
     return (
-      <div style={{ padding: '3rem', textAlign: 'center', color: '#64748B' }}>
-        <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 1rem auto' }} />
-        <div>Loading analytics & model performance...</div>
+      <div className="ic-analytics-state">
+        <RefreshCw className="ic-analytics-spin" size={28} />
+        <p>Loading analytics and model performance...</p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div style={{ padding: '2rem' }}>
-        <div className="card" style={{ backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', color: '#DC2626', padding: '1.5rem' }}>
-          <h3>Failed to load analytics</h3>
-          <p>{error}</p>
-          <button onClick={loadAnalytics} className="btn-secondary" style={{ marginTop: '0.75rem' }}>Retry</button>
-        </div>
+      <div className="ic-analytics-state ic-analytics-error">
+        <AlertCircle size={30} />
+        <h3>Unable to load analytics</h3>
+        <p>{error || 'No analytics data is available.'}</p>
+        <button onClick={loadAnalytics} className="ic-analytics-retry">
+          <RefreshCw size={15} /> Try Again
+        </button>
       </div>
     );
   }
 
-  const { metrics, trend, risk_over_time, top_atms, risk_distribution } = data;
+  const {
+    metrics,
+    trend,
+    risk_over_time,
+    top_atms,
+    risk_distribution
+  } = data;
 
   const donutData = [
-    { name: 'High', value: risk_distribution.high_risk, color: RISK_COLORS.high },
-    { name: 'Medium', value: risk_distribution.medium_risk, color: RISK_COLORS.medium },
-    { name: 'Low', value: risk_distribution.low_risk, color: RISK_COLORS.low }
+    { name: 'High Risk', value: risk_distribution.high_risk, color: RISK_COLORS.high },
+    { name: 'Medium Risk', value: risk_distribution.medium_risk, color: RISK_COLORS.medium },
+    { name: 'Low Risk', value: risk_distribution.low_risk, color: RISK_COLORS.low }
   ];
 
+  const totalRisk = risk_distribution.total;
+
+  const getPercentage = (value: number) =>
+    totalRisk > 0 ? ((value / totalRisk) * 100).toFixed(1) : '0.0';
+
+  const maxDemand = Math.max(...top_atms.map(atm => atm.demand), 0);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div className="ic-analytics-page">
+
       {/* Header */}
-      <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.2rem' }}>
-          Analytics & Insights
-        </h1>
-        <p style={{ fontSize: '0.84rem', color: '#64748B' }}>
-          Model performance, evaluation benchmarks, and network cash analytics
-        </p>
-      </div>
-
-      {/* 4 Model Evaluation Metric Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '1rem'
-      }}>
-        <KpiCard
-          title="MAE"
-          value={formatINR(metrics.mae)}
-          subtitle="Mean Absolute Error"
-          subtitleType="neutral"
-          icon={<Target size={20} color="#2563EB" />}
-          iconBg="#EFF6FF"
-        />
-        <KpiCard
-          title="RMSE"
-          value={formatINR(metrics.rmse)}
-          subtitle="Root Mean Squared Error"
-          subtitleType="neutral"
-          icon={<Activity size={20} color="#7C3AED" />}
-          iconBg="#F5F3FF"
-        />
-        <KpiCard
-          title="R² Score"
-          value={metrics.r2_score.toFixed(2)}
-          subtitle="Variance Explained"
-          subtitleType="success"
-          icon={<Award size={20} color="#16A34A" />}
-          iconBg="#F0FDF4"
-        />
-        <KpiCard
-          title="Prediction Accuracy"
-          value={`${metrics.accuracy_pct}%`}
-          subtitle={`Evaluated on holdout data (${metrics.evaluation_date})`}
-          subtitleType="success"
-          icon={<TrendingUp size={20} color="#D97706" />}
-          iconBg="#FFFBEB"
-        />
-      </div>
-
-      {/* Middle Row: Actual vs Predicted Demand & Risk Over Time */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '1.25rem'
-      }}>
-        {/* Actual vs Predicted Demand */}
-        <div className="card">
-          <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A', marginBottom: '1rem' }}>
-            Actual vs Predicted Demand
-          </h3>
-          <div style={{ width: '100%', height: '220px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trend} margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis dataKey="date" tick={{ fill: '#64748B', fontSize: 11 }} />
-                <YAxis tickFormatter={(val) => formatINR(val, true)} tick={{ fill: '#64748B', fontSize: 11 }} />
-                <Tooltip
-                  formatter={(val: any) => [formatINR(Number(val)), '']}
-                  contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px' }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '6px' }} />
-                <Line type="monotone" dataKey="actual_demand" name="Actual" stroke="#1D4ED8" strokeWidth={2.5} dot={{ r: 2.5 }} />
-                <Line type="monotone" dataKey="predicted_demand" name="Predicted" stroke="#38BDF8" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 2.5 }} />
-              </LineChart>
-            </ResponsiveContainer>
+      <div className="ic-analytics-header">
+        <div>
+          <div className="ic-analytics-eyebrow">
+            <BarChart3 size={14} /> INTELLIGENCE & REPORTING
           </div>
+          <h2>Analytics & Insights</h2>
+          <p>
+            Understand forecasting performance, ATM demand patterns and network risk.
+          </p>
         </div>
 
-        {/* Risk Distribution Over Time (Stacked Bars) */}
-        <div className="card">
-          <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A', marginBottom: '1rem' }}>
-            Risk Distribution Over Time
-          </h3>
-          <div style={{ width: '100%', height: '220px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={risk_over_time} margin={{ top: 5, right: 15, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis dataKey="date" tick={{ fill: '#64748B', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#64748B', fontSize: 11 }} />
-                <Tooltip contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px' }} />
-                <Legend iconType="rect" wrapperStyle={{ fontSize: '12px', paddingTop: '6px' }} />
-                <Bar dataKey="high" name="High" stackId="a" fill={RISK_COLORS.high} />
-                <Bar dataKey="medium" name="Medium" stackId="a" fill={RISK_COLORS.medium} />
-                <Bar dataKey="low" name="Low" stackId="a" fill={RISK_COLORS.low} />
-              </BarChart>
-            </ResponsiveContainer>
+        <button
+          className="ic-analytics-refresh"
+          onClick={loadAnalytics}
+          disabled={loading}
+        >
+          <RefreshCw size={16} />
+          Refresh Data
+        </button>
+      </div>
+
+      {/* Model metrics */}
+      <div className="ic-analytics-section-title">
+        <div>
+          <h3>Model Performance</h3>
+          <p>Evaluation metrics reported by the forecasting model</p>
+        </div>
+        <span className="ic-analytics-live-label">
+          <span /> Backend Data
+        </span>
+      </div>
+
+      <div className="ic-analytics-metrics">
+
+        <div className="ic-analytics-metric-card">
+          <div className="ic-analytics-metric-top">
+            <span>Mean Absolute Error</span>
+            <div className="ic-analytics-metric-icon blue">
+              <Target size={19} />
+            </div>
           </div>
+          <h2>{formatINR(metrics.mae)}</h2>
+          <p>MAE</p>
+        </div>
+
+        <div className="ic-analytics-metric-card">
+          <div className="ic-analytics-metric-top">
+            <span>Root Mean Squared Error</span>
+            <div className="ic-analytics-metric-icon purple">
+              <Activity size={19} />
+            </div>
+          </div>
+          <h2>{formatINR(metrics.rmse)}</h2>
+          <p>RMSE</p>
+        </div>
+
+        <div className="ic-analytics-metric-card">
+          <div className="ic-analytics-metric-top">
+            <span>Variance Explained</span>
+            <div className="ic-analytics-metric-icon green">
+              <Award size={19} />
+            </div>
+          </div>
+          <h2>{metrics.r2_score.toFixed(2)}</h2>
+          <p>R² Score</p>
+        </div>
+
+        <div className="ic-analytics-metric-card">
+          <div className="ic-analytics-metric-top">
+            <span>Prediction Accuracy</span>
+            <div className="ic-analytics-metric-icon amber">
+              <TrendingUp size={19} />
+            </div>
+          </div>
+          <h2>{metrics.accuracy_pct}%</h2>
+          <p>Evaluation date: {metrics.evaluation_date}</p>
+        </div>
+
+      </div>
+
+      {/* Charts */}
+      <div className="ic-analytics-section-title">
+        <div>
+          <h3>Demand & Risk Analysis</h3>
+          <p>Historical trends from the analytics service</p>
         </div>
       </div>
 
-      {/* Bottom Row: Top 5 High Demand ATMs & Risk Donut */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1.4fr 1fr',
-        gap: '1.25rem'
-      }}>
-        {/* Top 5 High Demand ATMs Horizontal Bars */}
-        <div className="card">
-          <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A', marginBottom: '1rem' }}>
-            Top 5 High Demand ATMs
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {top_atms.map((atm) => {
-              const maxDemand = 1800000;
-              const pct = (atm.demand / maxDemand) * 100;
+      <div className="ic-analytics-chart-grid">
+
+        {/* Demand chart */}
+        <section className="ic-analytics-panel">
+          <div className="ic-analytics-panel-heading">
+            <div className="ic-analytics-panel-icon blue">
+              <TrendingUp size={18} />
+            </div>
+            <div>
+              <h3>Actual vs Predicted Demand</h3>
+              <p>Cash demand comparison over time</p>
+            </div>
+          </div>
+
+          <div className="ic-analytics-chart">
+            {trend.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trend} margin={{ top: 10, right: 12, left: 8, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#263750" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    axisLine={{ stroke: '#334155' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(value) => formatINR(value, true)}
+                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    formatter={(value: any) => [formatINR(Number(value)), '']}
+                    contentStyle={{
+                      background: '#142238',
+                      border: '1px solid #334155',
+                      borderRadius: '9px',
+                      color: '#f1f5f9',
+                      fontSize: '12px'
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', color: '#cbd5e1' }} />
+                  <Line
+                    type="monotone"
+                    dataKey="actual_demand"
+                    name="Actual"
+                    stroke="#60a5fa"
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="predicted_demand"
+                    name="Predicted"
+                    stroke="#34d399"
+                    strokeWidth={2.5}
+                    strokeDasharray="5 4"
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="ic-analytics-empty">No demand trend data available.</div>
+            )}
+          </div>
+        </section>
+
+        {/* Risk over time */}
+        <section className="ic-analytics-panel">
+          <div className="ic-analytics-panel-heading">
+            <div className="ic-analytics-panel-icon amber">
+              <Activity size={18} />
+            </div>
+            <div>
+              <h3>Risk Distribution Over Time</h3>
+              <p>High, medium and low risk ATM counts</p>
+            </div>
+          </div>
+
+          <div className="ic-analytics-chart">
+            {risk_over_time.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={risk_over_time} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#263750" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    axisLine={{ stroke: '#334155' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#142238',
+                      border: '1px solid #334155',
+                      borderRadius: '9px',
+                      color: '#f1f5f9',
+                      fontSize: '12px'
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Bar dataKey="high" name="High" stackId="risk" fill={RISK_COLORS.high} />
+                  <Bar dataKey="medium" name="Medium" stackId="risk" fill={RISK_COLORS.medium} />
+                  <Bar dataKey="low" name="Low" stackId="risk" fill={RISK_COLORS.low} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="ic-analytics-empty">No risk history available.</div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* Bottom section */}
+      <div className="ic-analytics-bottom-grid">
+
+        {/* Top ATMs */}
+        <section className="ic-analytics-panel">
+          <div className="ic-analytics-panel-heading">
+            <div className="ic-analytics-panel-icon blue">
+              <Award size={18} />
+            </div>
+            <div>
+              <h3>Top High-Demand ATMs</h3>
+              <p>ATMs ranked by reported demand</p>
+            </div>
+          </div>
+
+          <div className="ic-analytics-top-atms">
+            {top_atms.length > 0 ? top_atms.map((atm, index) => {
+              const percentage = maxDemand > 0
+                ? (atm.demand / maxDemand) * 100
+                : 0;
+
               return (
-                <div key={atm.atm_id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.82rem' }}>
-                  <div style={{ width: '130px', color: '#334155', fontWeight: 500, flexShrink: 0 }}>
-                    {atm.name}
+                <div className="ic-analytics-atm-row" key={atm.atm_id}>
+                  <div className="ic-analytics-atm-rank">
+                    {String(index + 1).padStart(2, '0')}
                   </div>
-                  <div style={{ flex: 1, height: '10px', backgroundColor: '#EFF6FF', borderRadius: '9999px', overflow: 'hidden' }}>
-                    <div style={{ width: `${pct}%`, height: '100%', backgroundColor: '#2563EB', borderRadius: '9999px' }} />
+
+                  <div className="ic-analytics-atm-info">
+                    <div className="ic-analytics-atm-name">{atm.name}</div>
+                    <div className="ic-analytics-progress-track">
+                      <div
+                        className="ic-analytics-progress-fill"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
                   </div>
-                  <div style={{ width: '60px', textAlign: 'right', fontWeight: 600, color: '#0F172A', flexShrink: 0 }}>
+
+                  <div className="ic-analytics-atm-value">
                     {formatINR(atm.demand, true)}
                   </div>
                 </div>
               );
-            })}
+            }) : (
+              <div className="ic-analytics-empty">No ATM demand data available.</div>
+            )}
           </div>
-        </div>
+        </section>
 
-        {/* Risk Distribution Donut */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ width: '100%', textAlign: 'left', marginBottom: '0.5rem' }}>
-            <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A' }}>
-              Risk Distribution
-            </h3>
-          </div>
-
-          <div style={{ position: 'relative', width: '100%', height: '160px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={donutData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={48}
-                  outerRadius={70}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {donutData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: any) => [`${value} ATMs`, '']}
-                  contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center',
-              pointerEvents: 'none'
-            }}>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0F172A' }}>
-                {risk_distribution.total}
-              </div>
-              <div style={{ fontSize: '0.65rem', color: '#64748B' }}>
-                ATMs
-              </div>
+        {/* Risk donut */}
+        <section className="ic-analytics-panel">
+          <div className="ic-analytics-panel-heading">
+            <div className="ic-analytics-panel-icon purple">
+              <PieIcon size={18} />
+            </div>
+            <div>
+              <h3>Network Risk Distribution</h3>
+              <p>Current reported risk breakdown</p>
             </div>
           </div>
 
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.78rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>■ High</span>
-              <strong>{risk_distribution.high_risk} ({((risk_distribution.high_risk / risk_distribution.total) * 100).toFixed(1)}%)</strong>
+          <div className="ic-analytics-donut-area">
+            <div className="ic-analytics-donut">
+              {totalRisk > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={donutData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={53}
+                        outerRadius={76}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {donutData.map(entry => (
+                          <Cell key={entry.name} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: any) => [`${value} ATMs`, '']}
+                        contentStyle={{
+                          background: '#142238',
+                          border: '1px solid #334155',
+                          borderRadius: '9px',
+                          color: '#f1f5f9',
+                          fontSize: '12px'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  <div className="ic-analytics-donut-center">
+                    <strong>{totalRisk}</strong>
+                    <span>Total ATMs</span>
+                  </div>
+                </>
+              ) : (
+                <div className="ic-analytics-empty">No risk data available.</div>
+              )}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>■ Medium</span>
-              <strong>{risk_distribution.medium_risk} ({((risk_distribution.medium_risk / risk_distribution.total) * 100).toFixed(1)}%)</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>■ Low</span>
-              <strong>{risk_distribution.low_risk} ({((risk_distribution.low_risk / risk_distribution.total) * 100).toFixed(1)}%)</strong>
+
+            <div className="ic-analytics-risk-legend">
+              {donutData.map(item => (
+                <div className="ic-analytics-risk-row" key={item.name}>
+                  <div className="ic-analytics-risk-name">
+                    <span style={{ background: item.color }} />
+                    {item.name}
+                  </div>
+                  <div className="ic-analytics-risk-value">
+                    <strong>{item.value}</strong>
+                    <span>{getPercentage(item.value)}%</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        </section>
       </div>
+
+      <div className="ic-analytics-footer">
+        <Activity size={15} />
+        Analytics are displayed using data returned by the IntelliCash backend.
+      </div>
+
     </div>
   );
 };

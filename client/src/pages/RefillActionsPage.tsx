@@ -1,5 +1,19 @@
+
 import React, { useEffect, useState } from 'react';
-import { Search, RotateCcw, CheckCircle, ExternalLink, RefreshCw, AlertTriangle } from 'lucide-react';
+import {
+  Search,
+  RotateCcw,
+  CheckCircle,
+  RefreshCw,
+  AlertTriangle,
+  Truck,
+  MapPin,
+  Wallet,
+  Activity,
+  ArrowUpRight,
+  Filter,
+} from 'lucide-react';
+
 import { api } from '../lib/api';
 import { RefillRecommendation } from '../types';
 import { formatINR } from '../lib/formatters';
@@ -11,7 +25,9 @@ interface RefillActionsPageProps {
   onNavigate: (page: PageId, extraParam?: string) => void;
 }
 
-export const RefillActionsPage: React.FC<RefillActionsPageProps> = ({ onNavigate }) => {
+export const RefillActionsPage: React.FC<RefillActionsPageProps> = ({
+  onNavigate,
+}) => {
   const [refills, setRefills] = useState<RefillRecommendation[]>([]);
   const [cities, setCities] = useState<string[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -20,6 +36,7 @@ export const RefillActionsPage: React.FC<RefillActionsPageProps> = ({ onNavigate
   const [pageSize] = useState<number>(5);
 
   const [search, setSearch] = useState<string>('');
+  const [appliedSearch, setAppliedSearch] = useState<string>('');
   const [selectedRisk, setSelectedRisk] = useState<string>('All Risk Levels');
   const [selectedStatus, setSelectedStatus] = useState<string>('Pending');
   const [selectedCity, setSelectedCity] = useState<string>('All Cities');
@@ -28,35 +45,30 @@ export const RefillActionsPage: React.FC<RefillActionsPageProps> = ({ onNavigate
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadCities();
-  }, []);
-
-  useEffect(() => {
-    loadRefills();
-  }, [currentPage, selectedRisk, selectedStatus, selectedCity]);
-
   const loadCities = async () => {
     try {
       const res = await api.getCities();
       setCities(res);
-    } catch {
-      // fallback
+    } catch (err) {
+      console.error('Unable to load cities:', err);
     }
   };
 
   const loadRefills = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await api.getRefills({
-        risk_level: selectedRisk !== 'All Risk Levels' ? selectedRisk : undefined,
+        risk_level:
+          selectedRisk !== 'All Risk Levels' ? selectedRisk : undefined,
         review_status: selectedStatus !== 'All' ? selectedStatus : undefined,
         city: selectedCity !== 'All Cities' ? selectedCity : undefined,
-        search: search.trim() || undefined,
+        search: appliedSearch.trim() || undefined,
         page: currentPage,
-        page_size: pageSize
+        page_size: pageSize,
       });
+
       setRefills(res.items);
       setTotal(res.total);
       setTotalPages(res.total_pages);
@@ -67,12 +79,35 @@ export const RefillActionsPage: React.FC<RefillActionsPageProps> = ({ onNavigate
     }
   };
 
+  useEffect(() => {
+    loadCities();
+  }, []);
+
+  useEffect(() => {
+    loadRefills();
+  }, [currentPage, selectedRisk, selectedStatus, selectedCity, appliedSearch]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    setAppliedSearch(search.trim());
+  };
+
+  const handleReset = () => {
+    setSearch('');
+    setAppliedSearch('');
+    setSelectedRisk('All Risk Levels');
+    setSelectedStatus('Pending');
+    setSelectedCity('All Cities');
+    setCurrentPage(1);
+  };
+
   const handleMarkReviewed = async (predictionId: string) => {
     setUpdatingId(predictionId);
+
     try {
       await api.updateRefillReview(predictionId, 'Reviewed');
-      // Refresh current list
-      loadRefills();
+      await loadRefills();
     } catch (err: any) {
       alert(`Failed to update review status: ${err.message}`);
     } finally {
@@ -80,193 +115,320 @@ export const RefillActionsPage: React.FC<RefillActionsPageProps> = ({ onNavigate
     }
   };
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCurrentPage(1);
-    loadRefills();
-  };
+  const pendingCount = refills.filter(
+    (r) => r.review_status === 'Pending'
+  ).length;
 
-  const handleReset = () => {
-    setSearch('');
-    setSelectedRisk('All Risk Levels');
-    setSelectedStatus('Pending');
-    setSelectedCity('All Cities');
-    setCurrentPage(1);
-  };
+  const reviewedCount = refills.filter(
+    (r) => r.review_status === 'Reviewed'
+  ).length;
+
+  const highRiskCount = refills.filter(
+    (r) => r.risk_level === 'HIGH'
+  ).length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Header */}
-      <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.2rem' }}>
-          Refill Recommendations
-        </h1>
-        <p style={{ fontSize: '0.84rem', color: '#64748B' }}>
-          List of ATMs with recommended refill amounts
-        </p>
-      </div>
+    <div className="ic-refill-page">
 
-      {/* Filter Bar */}
-      <div className="card" style={{ padding: '0.9rem 1.25rem' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '0.75rem'
-        }}>
-          {/* Dropdown Filters */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <select
-              value={selectedRisk}
-              onChange={e => { setSelectedRisk(e.target.value); setCurrentPage(1); }}
-              className="form-select"
-              style={{ width: '150px', fontSize: '0.82rem' }}
-            >
-              <option value="All Risk Levels">All Risk Levels</option>
-              <option value="HIGH">High Risk</option>
-              <option value="MEDIUM">Medium Risk</option>
-              <option value="LOW">Low Risk</option>
-            </select>
-
-            <select
-              value={selectedStatus}
-              onChange={e => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-              className="form-select"
-              style={{ width: '130px', fontSize: '0.82rem' }}
-            >
-              <option value="Pending">Pending</option>
-              <option value="Reviewed">Reviewed</option>
-              <option value="All">All Status</option>
-            </select>
-
-            <select
-              value={selectedCity}
-              onChange={e => { setSelectedCity(e.target.value); setCurrentPage(1); }}
-              className="form-select"
-              style={{ width: '140px', fontSize: '0.82rem' }}
-            >
-              <option value="All Cities">All Cities</option>
-              {cities.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-
-            <button
-              onClick={handleReset}
-              className="btn-secondary"
-              style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem' }}
-            >
-              <RotateCcw size={14} />
-              Reset
-            </button>
+      {/* Page Header */}
+      <div className="ic-refill-header">
+        <div>
+          <div className="ic-refill-eyebrow">
+            <Activity size={14} />
+            CASH OPERATIONS / REFILL MANAGEMENT
           </div>
 
-          {/* Search */}
-          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.5rem', width: '250px' }}>
-            <div style={{ position: 'relative', width: '100%' }}>
-              <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search ATM ID, location..."
-                className="form-input"
-                style={{ paddingLeft: '32px', height: '36px', fontSize: '0.82rem' }}
-              />
-            </div>
+          <h1>Refill Recommendations</h1>
+
+          <p>
+            Monitor ATM cash requirements and manage replenishment priorities.
+          </p>
+        </div>
+
+        <button
+          className="ic-refill-refresh"
+          onClick={loadRefills}
+          disabled={loading}
+        >
+          <RefreshCw size={16} className={loading ? 'ic-refill-spinning' : ''} />
+          Refresh Data
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="ic-refill-summary">
+
+        <div className="ic-refill-summary-card">
+          <div className="ic-refill-summary-icon blue">
+            <Truck size={21} />
+          </div>
+          <div>
+            <span>Total Recommendations</span>
+            <h2>{total}</h2>
+            <small>Available records</small>
+          </div>
+        </div>
+
+        <div className="ic-refill-summary-card">
+          <div className="ic-refill-summary-icon amber">
+            <AlertTriangle size={21} />
+          </div>
+          <div>
+            <span>Pending Review</span>
+            <h2>{pendingCount}</h2>
+            <small>On current page</small>
+          </div>
+        </div>
+
+        <div className="ic-refill-summary-card">
+          <div className="ic-refill-summary-icon green">
+            <CheckCircle size={21} />
+          </div>
+          <div>
+            <span>Reviewed</span>
+            <h2>{reviewedCount}</h2>
+            <small>On current page</small>
+          </div>
+        </div>
+
+        <div className="ic-refill-summary-card">
+          <div className="ic-refill-summary-icon red">
+            <Activity size={21} />
+          </div>
+          <div>
+            <span>High Risk</span>
+            <h2>{highRiskCount}</h2>
+            <small>On current page</small>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Filters */}
+      <div className="ic-refill-filter-panel">
+
+        <div className="ic-refill-filter-title">
+          <div className="ic-refill-filter-icon">
+            <Filter size={17} />
+          </div>
+
+          <div>
+            <h3>Filter Recommendations</h3>
+            <p>Find specific ATMs and review their refill status.</p>
+          </div>
+        </div>
+
+        <div className="ic-refill-filter-controls">
+
+          <select
+            value={selectedRisk}
+            onChange={(e) => {
+              setSelectedRisk(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="ic-refill-select"
+          >
+            <option value="All Risk Levels">All Risk Levels</option>
+            <option value="HIGH">High Risk</option>
+            <option value="MEDIUM">Medium Risk</option>
+            <option value="LOW">Low Risk</option>
+          </select>
+
+          <select
+            value={selectedStatus}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="ic-refill-select"
+          >
+            <option value="Pending">Pending</option>
+            <option value="Reviewed">Reviewed</option>
+            <option value="All">All Status</option>
+          </select>
+
+          <select
+            value={selectedCity}
+            onChange={(e) => {
+              setSelectedCity(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="ic-refill-select"
+          >
+            <option value="All Cities">All Cities</option>
+            {cities.map((city) => (
+              <option key={city} value={city}>
+                {city}
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={handleReset}
+            className="ic-refill-reset"
+          >
+            <RotateCcw size={14} />
+            Reset
+          </button>
+
+          <form
+            onSubmit={handleSearchSubmit}
+            className="ic-refill-search-form"
+          >
+            <Search size={16} />
+
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search ATM ID or location..."
+            />
+
+            <button type="submit">Search</button>
           </form>
+
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card" style={{ padding: '0.75rem 1.25rem' }}>
+      {/* Recommendations Table */}
+      <div className="ic-refill-table-panel">
+
+        <div className="ic-refill-table-header">
+          <div>
+            <h2>ATM Replenishment Queue</h2>
+            <p>
+              AI-generated cash refill recommendations for ATM locations.
+            </p>
+          </div>
+
+          <div className="ic-refill-record-count">
+            {total} Records
+          </div>
+        </div>
+
         {loading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: '#64748B' }}>
-            <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.75rem auto' }} />
-            <div>Loading refill recommendations...</div>
+          <div className="ic-refill-state">
+            <RefreshCw size={26} className="ic-refill-spinning" />
+            <p>Loading refill recommendations...</p>
           </div>
         ) : error ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#DC2626' }}>
-            <div>{error}</div>
-            <button onClick={loadRefills} className="btn-secondary" style={{ marginTop: '0.75rem' }}>Retry</button>
+          <div className="ic-refill-state error">
+            <AlertTriangle size={27} />
+            <p>{error}</p>
+            <button onClick={loadRefills}>Try Again</button>
           </div>
         ) : refills.length === 0 ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: '#64748B' }}>
-            <div>No refill recommendations match the selected filters.</div>
-            <button onClick={handleReset} className="btn-secondary" style={{ marginTop: '0.75rem' }}>Reset Filters</button>
+          <div className="ic-refill-state">
+            <Truck size={32} />
+            <h3>No recommendations found</h3>
+            <p>Try changing the selected filters or search keyword.</p>
+            <button onClick={handleReset}>Reset Filters</button>
           </div>
         ) : (
           <>
-            <div className="data-table-container">
-              <table className="data-table">
+            <div className="ic-refill-table-wrapper">
+              <table className="ic-refill-table">
                 <thead>
                   <tr>
-                    <th>ATM ID</th>
-                    <th>Location</th>
-                    <th>Current Balance</th>
-                    <th>Predicted Demand</th>
-                    <th>Recommended Refill</th>
-                    <th>Priority</th>
-                    <th>Status</th>
-                    <th>Action</th>
+                    <th>ATM DETAILS</th>
+                    <th>CURRENT BALANCE</th>
+                    <th>PREDICTED DEMAND</th>
+                    <th>RECOMMENDED REFILL</th>
+                    <th>PRIORITY</th>
+                    <th>REVIEW STATUS</th>
+                    <th>ACTION</th>
                   </tr>
                 </thead>
+
                 <tbody>
-                  {refills.map(r => (
+                  {refills.map((r) => (
                     <tr key={r.prediction_id}>
                       <td>
-                        <strong style={{ color: '#1E293B' }}>{r.atm_id}</strong>
+                        <div className="ic-refill-atm-details">
+                          <div className="ic-refill-atm-icon">
+                            <MapPin size={17} />
+                          </div>
+
+                          <div>
+                            <strong>{r.atm_id}</strong>
+                            <span>
+                              {r.atm_name
+                                ? `${r.atm_name}, ${r.city}`
+                                : r.atm_id}
+                            </span>
+                          </div>
+                        </div>
                       </td>
-                      <td>{r.atm_name ? `${r.atm_name}, ${r.city}` : r.atm_id}</td>
-                      <td style={{ fontWeight: 600 }}>{formatINR(r.current_balance)}</td>
-                      <td style={{ fontWeight: 600, color: '#2563EB' }}>{formatINR(r.predicted_demand)}</td>
-                      <td style={{ fontWeight: 700, color: '#DC2626' }}>
-                        {formatINR(r.recommended_refill)}
+
+                      <td>
+                        <span className="ic-refill-balance">
+                          {formatINR(r.current_balance)}
+                        </span>
                       </td>
+
+                      <td>
+                        <span className="ic-refill-demand">
+                          {formatINR(r.predicted_demand)}
+                        </span>
+                      </td>
+
+                      <td>
+                        <div className="ic-refill-recommended">
+                          <Wallet size={15} />
+                          {formatINR(r.recommended_refill)}
+                        </div>
+                      </td>
+
                       <td>
                         <RiskBadge risk={r.risk_level} />
                       </td>
+
                       <td>
-                        <span className={r.review_status === 'Reviewed' ? 'badge-status-reviewed' : 'badge-status-pending'}>
+                        <span
+                          className={
+                            r.review_status === 'Reviewed'
+                              ? 'ic-refill-status reviewed'
+                              : 'ic-refill-status pending'
+                          }
+                        >
+                          {r.review_status === 'Reviewed' ? (
+                            <CheckCircle size={13} />
+                          ) : (
+                            <AlertTriangle size={13} />
+                          )}
+
                           {r.review_status}
                         </span>
                       </td>
+
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          {r.review_status === 'Pending' ? (
-                            <button
-                              onClick={() => handleMarkReviewed(r.prediction_id)}
-                              disabled={updatingId === r.prediction_id}
-                              style={{
-                                background: '#EFF6FF',
-                                border: '1px solid #BFDBFE',
-                                color: '#1D4ED8',
-                                padding: '0.25rem 0.55rem',
-                                borderRadius: '4px',
-                                fontSize: '0.78rem',
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {updatingId === r.prediction_id ? 'Saving...' : 'Mark Reviewed'}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => onNavigate('atm-details', r.atm_id)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#2563EB',
-                                fontSize: '0.8rem',
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              View
-                            </button>
-                          )}
-                        </div>
+                        {r.review_status === 'Pending' ? (
+                          <button
+                            onClick={() => handleMarkReviewed(r.prediction_id)}
+                            disabled={updatingId === r.prediction_id}
+                            className="ic-refill-review-button"
+                          >
+                            {updatingId === r.prediction_id ? (
+                              <RefreshCw size={14} className="ic-refill-spinning" />
+                            ) : (
+                              <CheckCircle size={14} />
+                            )}
+
+                            {updatingId === r.prediction_id
+                              ? 'Saving...'
+                              : 'Mark Reviewed'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              onNavigate('atm-details', r.atm_id)
+                            }
+                            className="ic-refill-view-button"
+                          >
+                            View Details
+                            <ArrowUpRight size={14} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -274,17 +436,29 @@ export const RefillActionsPage: React.FC<RefillActionsPageProps> = ({ onNavigate
               </table>
             </div>
 
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalRecords={total}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              entityName="recommendations"
-            />
+            <div className="ic-refill-pagination">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={total}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                entityName="recommendations"
+              />
+            </div>
           </>
         )}
       </div>
+
+      {/* Footer Note */}
+      <div className="ic-refill-info">
+        <Wallet size={18} />
+        <span>
+          Review AI-generated refill recommendations before taking operational
+          action. Refill amounts are based on the available prediction records.
+        </span>
+      </div>
+
     </div>
   );
 };

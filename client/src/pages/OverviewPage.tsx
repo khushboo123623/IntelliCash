@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   Landmark,
@@ -6,8 +7,13 @@ import {
   ShieldCheck,
   TrendingUp,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Wallet,
+  Activity,
+  ArrowUpRight,
+  BrainCircuit
 } from 'lucide-react';
+
 import {
   ResponsiveContainer,
   LineChart,
@@ -21,6 +27,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
+
 import { api } from '../lib/api';
 import { OverviewData } from '../types';
 import { formatINR } from '../lib/formatters';
@@ -33,14 +40,14 @@ interface OverviewPageProps {
 }
 
 const RISK_COLORS = {
-  high: '#DC2626',
-  medium: '#D97706',
-  low: '#16A34A'
+  high: '#EF4444',
+  medium: '#F59E0B',
+  low: '#10B981'
 };
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   const [data, setData] = useState<OverviewData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,11 +57,12 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   const loadData = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await api.getOverview();
       setData(res);
     } catch (err: any) {
-      setError(err.message || 'Failed to load dashboard overview data.');
+      setError(err.message || 'Unable to load dashboard data.');
     } finally {
       setLoading(false);
     }
@@ -62,25 +70,20 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
 
   if (loading) {
     return (
-      <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <div style={{ textAlign: 'center', color: '#64748B' }}>
-          <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 1rem auto' }} />
-          <div>Loading overview dashboard...</div>
-        </div>
+      <div className="ic-overview-loading">
+        <RefreshCw className="animate-spin" size={30} />
+        <p>Preparing your cash intelligence dashboard...</p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div style={{ padding: '2rem' }}>
-        <div className="card" style={{ borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', padding: '1.5rem' }}>
-          <h3 style={{ color: '#DC2626', marginBottom: '0.5rem' }}>Failed to load dashboard</h3>
-          <p style={{ color: '#991B1B', fontSize: '0.9rem', marginBottom: '1rem' }}>{error}</p>
-          <button onClick={loadData} className="btn-primary" style={{ backgroundColor: '#DC2626' }}>
-            Retry
-          </button>
-        </div>
+      <div className="ic-overview-error">
+        <AlertCircle size={32} />
+        <h2>Dashboard unavailable</h2>
+        <p>{error || 'No dashboard data found.'}</p>
+        <button onClick={loadData}>Try Again</button>
       </div>
     );
   }
@@ -94,264 +97,309 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Page Header */}
-      <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.2rem' }}>
-          Dashboard
-        </h1>
-        <p style={{ fontSize: '0.84rem', color: '#64748B' }}>
-          Overview of ATM network, predictions and refill recommendations
-        </p>
-      </div>
+    <div className="ic-overview">
 
-      {/* Top KPI Cards (4 cards) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '1rem'
-      }}>
-        <KpiCard
-          title="Total ATMs"
-          value={kpis.total_atms}
-          subtitle="↑ 12% from last month"
-          subtitleType="success"
-          icon={<Landmark size={20} color="#2563EB" />}
-          iconBg="#EFF6FF"
-        />
-        <KpiCard
-          title="High Risk"
-          value={kpis.high_risk}
-          subtitle={`${kpis.high_risk_pct}% of network`}
-          subtitleType="danger"
-          icon={<AlertCircle size={20} color="#DC2626" />}
-          iconBg="#FEF2F2"
-        />
-        <KpiCard
-          title="Medium Risk"
-          value={kpis.medium_risk}
-          subtitle={`${kpis.medium_risk_pct}% of network`}
-          subtitleType="warning"
-          icon={<AlertTriangle size={20} color="#D97706" />}
-          iconBg="#FFFBEB"
-        />
-        <KpiCard
-          title="Low Risk"
-          value={kpis.low_risk}
-          subtitle={`${kpis.low_risk_pct}% of network`}
-          subtitleType="success"
-          icon={<ShieldCheck size={20} color="#16A34A" />}
-          iconBg="#F0FDF4"
-        />
-      </div>
-
-      {/* Middle Row: Trend Chart & Risk Donut */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '2fr 1fr',
-        gap: '1.25rem'
-      }}>
-        {/* Actual vs Predicted Demand Line Chart */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-            <div>
-              <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A' }}>
-                Actual vs Predicted Cash Demand (Last 14 Days)
-              </h3>
-            </div>
-            <select className="form-select" style={{ width: '130px', fontSize: '0.78rem', padding: '0.3rem 0.6rem' }} defaultValue="Last 14 days">
-              <option value="Last 14 days">Last 14 days</option>
-              <option value="Last 7 days">Last 7 days</option>
-              <option value="Last 30 days">Last 30 days</option>
-            </select>
+      {/* Welcome Header */}
+      <section className="ic-dashboard-banner">
+        <div>
+          <div className="ic-dashboard-eyebrow">
+            <BrainCircuit size={16} />
+            INTELLIGENT CASH MANAGEMENT
           </div>
 
-          <div style={{ width: '100%', height: '240px' }}>
+          <h1>Cash Intelligence Overview</h1>
+
+          <p>
+            Monitor ATM liquidity, identify cash shortages and plan smarter
+            replenishment decisions.
+          </p>
+        </div>
+
+        <button className="ic-refresh-button" onClick={loadData}>
+          <RefreshCw size={16} />
+          Refresh Data
+        </button>
+      </section>
+
+      {/* KPI Section */}
+      <section className="ic-section">
+        <div className="ic-section-heading">
+          <div>
+            <span className="ic-section-label">NETWORK PERFORMANCE</span>
+            <h2>Network at a glance</h2>
+          </div>
+          <Activity size={22} />
+        </div>
+
+        <div className="ic-kpi-grid">
+          <KpiCard
+            title="Total ATMs"
+            value={kpis.total_atms}
+            subtitle="ATM network coverage"
+            subtitleType="success"
+            icon={<Landmark size={21} color="#2563EB" />}
+            iconBg="#DBEAFE"
+          />
+
+          <KpiCard
+            title="High Risk"
+            value={kpis.high_risk}
+            subtitle={`${kpis.high_risk_pct}% of network`}
+            subtitleType="danger"
+            icon={<AlertCircle size={21} color="#DC2626" />}
+            iconBg="#FEE2E2"
+          />
+
+          <KpiCard
+            title="Medium Risk"
+            value={kpis.medium_risk}
+            subtitle={`${kpis.medium_risk_pct}% of network`}
+            subtitleType="warning"
+            icon={<AlertTriangle size={21} color="#D97706" />}
+            iconBg="#FEF3C7"
+          />
+
+          <KpiCard
+            title="Low Risk"
+            value={kpis.low_risk}
+            subtitle={`${kpis.low_risk_pct}% of network`}
+            subtitleType="success"
+            icon={<ShieldCheck size={21} color="#059669" />}
+            iconBg="#D1FAE5"
+          />
+        </div>
+      </section>
+
+      {/* Analytics Section */}
+      <section className="ic-analytics-grid">
+
+        <div className="ic-panel ic-trend-panel">
+          <div className="ic-panel-header">
+            <div>
+              <span className="ic-section-label">FORECAST ANALYTICS</span>
+              <h2>Cash demand analysis</h2>
+              <p>Actual versus predicted cash demand</p>
+            </div>
+
+            <div className="ic-panel-icon">
+              <TrendingUp size={21} />
+            </div>
+          </div>
+
+          <div className="ic-chart">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trend} margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis dataKey="date" tick={{ fill: '#64748B', fontSize: 11 }} axisLine={{ stroke: '#CBD5E1' }} />
+              <LineChart
+                data={trend}
+                margin={{ top: 10, right: 15, left: 10, bottom: 5 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="4 4"
+                  vertical={false}
+                  stroke="#E8EDF5"
+                />
+
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: '#64748B', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+
                 <YAxis
                   tickFormatter={(val) => formatINR(val, true)}
                   tick={{ fill: '#64748B', fontSize: 11 }}
-                  axisLine={{ stroke: '#CBD5E1' }}
+                  axisLine={false}
+                  tickLine={false}
                 />
+
                 <Tooltip
                   formatter={(val: any) => [formatINR(Number(val)), '']}
-                  contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px' }}
+                  contentStyle={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '12px',
+                    border: '1px solid #E2E8F0',
+                    fontSize: '12px'
+                  }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
+
+                <Legend
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
+                />
+
                 <Line
                   type="monotone"
                   dataKey="actual_demand"
                   name="Actual Demand"
-                  stroke="#1D4ED8"
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: '#1D4ED8' }}
-                  activeDot={{ r: 5 }}
+                  stroke="#2563EB"
+                  strokeWidth={3}
+                  dot={false}
+                  activeDot={{ r: 6 }}
                 />
+
                 <Line
                   type="monotone"
                   dataKey="predicted_demand"
                   name="Predicted Demand"
-                  stroke="#38BDF8"
-                  strokeWidth={2.5}
-                  strokeDasharray="4 4"
-                  dot={{ r: 3, fill: '#38BDF8' }}
+                  stroke="#06B6D4"
+                  strokeWidth={3}
+                  strokeDasharray="6 5"
+                  dot={false}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Risk Distribution Donut Chart */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ width: '100%', textAlign: 'left', marginBottom: '0.5rem' }}>
-            <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A' }}>
-              Risk Distribution
-            </h3>
+        <div className="ic-panel ic-risk-panel">
+          <div className="ic-panel-header">
+            <div>
+              <span className="ic-section-label">RISK MONITORING</span>
+              <h2>ATM risk profile</h2>
+              <p>Network-wide risk distribution</p>
+            </div>
+            <ShieldCheck size={22} color="#2563EB" />
           </div>
 
-          <div style={{ position: 'relative', width: '100%', height: '170px' }}>
+          <div className="ic-donut-wrapper">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={donutData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={52}
-                  outerRadius={75}
-                  paddingAngle={3}
+                  innerRadius={58}
+                  outerRadius={82}
+                  paddingAngle={4}
                   dataKey="value"
                 >
                   {donutData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={index} fill={entry.color} />
                   ))}
                 </Pie>
+
                 <Tooltip
                   formatter={(value: any) => [`${value} ATMs`, '']}
-                  contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px' }}
                 />
               </PieChart>
             </ResponsiveContainer>
-            {/* Center Text */}
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center',
-              pointerEvents: 'none'
-            }}>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', lineHeight: 1 }}>
-                {risk_distribution.total}
-              </div>
-              <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 500 }}>
-                ATMs
-              </div>
+
+            <div className="ic-donut-center">
+              <strong>{risk_distribution.total}</strong>
+              <span>Total ATMs</span>
             </div>
           </div>
 
-          {/* Legend Items */}
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: '0.5rem', fontSize: '0.8rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: RISK_COLORS.high }} />
-                <span style={{ color: '#475569' }}>High Risk</span>
-              </div>
-              <strong style={{ color: '#0F172A' }}>{risk_distribution.high_risk} ({kpis.high_risk_pct}%)</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: RISK_COLORS.medium }} />
-                <span style={{ color: '#475569' }}>Medium Risk</span>
-              </div>
-              <strong style={{ color: '#0F172A' }}>{risk_distribution.medium_risk} ({kpis.medium_risk_pct}%)</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: RISK_COLORS.low }} />
-                <span style={{ color: '#475569' }}>Low Risk</span>
-              </div>
-              <strong style={{ color: '#0F172A' }}>{risk_distribution.low_risk} ({kpis.low_risk_pct}%)</strong>
-            </div>
+          <div className="ic-risk-legend">
+            {donutData.map((item, index) => {
+              const percentage = [
+                kpis.high_risk_pct,
+                kpis.medium_risk_pct,
+                kpis.low_risk_pct
+              ][index];
+
+              return (
+                <div className="ic-risk-item" key={item.name}>
+                  <span className="ic-risk-name">
+                    <i style={{ backgroundColor: item.color }} />
+                    {item.name}
+                  </span>
+                  <strong>{item.value} ({percentage}%)</strong>
+                </div>
+              );
+            })}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Bottom Row: ATMs Requiring Attention */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      {/* ATM Attention Table */}
+      <section className="ic-panel ic-atm-panel">
+        <div className="ic-panel-header ic-atm-header">
           <div>
-            <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A' }}>
-              ATMs Requiring Attention
-            </h3>
-            <p style={{ fontSize: '0.78rem', color: '#64748B' }}>
-              High and medium priority ATMs needing cash monitoring or refill
-            </p>
+            <span className="ic-section-label">ACTION REQUIRED</span>
+            <h2>ATMs needing attention</h2>
+            <p>Prioritize ATMs based on predicted cash requirements.</p>
           </div>
+
           <button
+            className="ic-view-refills"
             onClick={() => onNavigate('refill-actions')}
-            className="btn-secondary"
-            style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
           >
-            View All Refills
+            View Refill Actions
+            <ArrowUpRight size={16} />
           </button>
         </div>
 
-        <div className="data-table-container">
-          <table className="data-table">
+        <div className="ic-table-wrapper">
+          <table className="ic-atm-table">
             <thead>
               <tr>
                 <th>ATM ID</th>
                 <th>Location</th>
                 <th>Current Balance</th>
                 <th>Predicted Demand</th>
-                <th>Risk</th>
-                <th>Recommended Refill</th>
+                <th>Risk Level</th>
+                <th>Suggested Refill</th>
                 <th>Action</th>
               </tr>
             </thead>
+
             <tbody>
               {attention_list.map((item) => (
                 <tr key={item.atm_id}>
                   <td>
-                    <strong style={{ color: '#1E293B' }}>{item.atm_id}</strong>
+                    <strong className="ic-atm-id">{item.atm_id}</strong>
                   </td>
+
                   <td>{item.location}</td>
-                  <td style={{ fontWeight: 600 }}>{formatINR(item.current_balance)}</td>
-                  <td style={{ fontWeight: 600, color: '#2563EB' }}>{formatINR(item.predicted_demand)}</td>
+
+                  <td>{formatINR(item.current_balance)}</td>
+
+                  <td className="ic-demand-value">
+                    {formatINR(item.predicted_demand)}
+                  </td>
+
                   <td>
                     <RiskBadge risk={item.risk} />
                   </td>
-                  <td style={{ fontWeight: 600, color: '#DC2626' }}>
+
+                  <td className="ic-refill-value">
                     {formatINR(item.recommended_refill)}
                   </td>
+
                   <td>
                     <button
+                      className="ic-view-button"
                       onClick={() => onNavigate('atm-details', item.atm_id)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#2563EB',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        fontSize: '0.82rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.2rem'
-                      }}
                     >
-                      View
-                      <ExternalLink size={12} />
+                      Details
+                      <ExternalLink size={13} />
                     </button>
                   </td>
                 </tr>
               ))}
+
+              {attention_list.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="ic-empty-table">
+                    No ATMs currently require attention.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+      </section>
+
+      {/* Footer */}
+      <div className="ic-dashboard-footer">
+        <div>
+          <Wallet size={16} />
+          IntelliCash Cash Intelligence
+        </div>
+        <span>AI-powered ATM monitoring and forecasting</span>
       </div>
+
     </div>
   );
 };

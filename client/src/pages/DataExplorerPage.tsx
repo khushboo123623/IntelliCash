@@ -1,5 +1,19 @@
+
 import React, { useEffect, useState } from 'react';
-import { Search, RotateCcw, Database, Table, RefreshCw, FileText, CheckCircle } from 'lucide-react';
+import {
+  Search,
+  RotateCcw,
+  Database,
+  Table,
+  RefreshCw,
+  FileText,
+  Activity,
+  Wallet,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Layers,
+} from 'lucide-react';
+
 import { api } from '../lib/api';
 import { Transaction, FeatureRecord, ATM } from '../types';
 import { formatINR, formatDateTime } from '../lib/formatters';
@@ -7,17 +21,20 @@ import { Pagination } from '../components/ui/Pagination';
 
 export const DataExplorerPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'transactions' | 'features'>('transactions');
+
   const [atms, setAtms] = useState<ATM[]>([]);
   const [selectedAtm, setSelectedAtm] = useState<string>('All ATMs');
-  const [search, setSearch] = useState<string>('');
 
-  // Transactions state
+  const [search, setSearch] = useState<string>('');
+  const [appliedSearch, setAppliedSearch] = useState<string>('');
+
+  // Transaction data
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txTotal, setTxTotal] = useState<number>(0);
   const [txTotalPages, setTxTotalPages] = useState<number>(1);
   const [txPage, setTxPage] = useState<number>(1);
 
-  // Features state
+  // Engineered feature data
   const [features, setFeatures] = useState<FeatureRecord[]>([]);
   const [featTotal, setFeatTotal] = useState<number>(0);
   const [featTotalPages, setFeatTotalPages] = useState<number>(1);
@@ -26,37 +43,27 @@ export const DataExplorerPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadAtms();
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'transactions') {
-      loadTransactions();
-    } else {
-      loadFeatures();
-    }
-  }, [activeTab, txPage, featPage, selectedAtm]);
-
   const loadAtms = async () => {
     try {
       const res = await api.getAtms({ page: 1, page_size: 100 });
       setAtms(res.items);
-    } catch {
-      // fallback
+    } catch (err) {
+      console.error('Unable to load ATMs:', err);
     }
   };
 
   const loadTransactions = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await api.getTransactions({
-        search: search.trim() || undefined,
+        search: appliedSearch.trim() || undefined,
         atm_id: selectedAtm !== 'All ATMs' ? selectedAtm : undefined,
         page: txPage,
-        page_size: 5
+        page_size: 5,
       });
+
       setTransactions(res.items);
       setTxTotal(res.total);
       setTxTotalPages(res.total_pages);
@@ -70,12 +77,14 @@ export const DataExplorerPage: React.FC = () => {
   const loadFeatures = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await api.getEngineeredFeatures({
         atm_id: selectedAtm !== 'All ATMs' ? selectedAtm : undefined,
         page: featPage,
-        page_size: 5
+        page_size: 5,
       });
+
       setFeatures(res.items);
       setFeatTotal(res.total);
       setFeatTotalPages(res.total_pages);
@@ -86,242 +95,435 @@ export const DataExplorerPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    loadAtms();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'transactions') {
+      loadTransactions();
+    } else {
+      loadFeatures();
+    }
+  }, [activeTab, txPage, featPage, selectedAtm, appliedSearch]);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (activeTab === 'transactions') {
-      setTxPage(1);
-      loadTransactions();
-    }
+    setTxPage(1);
+    setAppliedSearch(search.trim());
   };
 
   const handleReset = () => {
     setSearch('');
+    setAppliedSearch('');
     setSelectedAtm('All ATMs');
     setTxPage(1);
     setFeatPage(1);
   };
 
+  const handleTabChange = (tab: 'transactions' | 'features') => {
+    setActiveTab(tab);
+  };
+
+  const currentTotal =
+    activeTab === 'transactions' ? txTotal : featTotal;
+
+  const currentRecords =
+    activeTab === 'transactions' ? transactions.length : features.length;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <div className="ic-data-page">
+
       {/* Header */}
-      <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.2rem' }}>
-          Data Explorer
-        </h1>
-        <p style={{ fontSize: '0.84rem', color: '#64748B' }}>
-          Explore ATM transaction data and engineered features used for ML modeling
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.25rem' }}>
-        <button
-          onClick={() => setActiveTab('transactions')}
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '0.85rem',
-            fontWeight: activeTab === 'transactions' ? 600 : 500,
-            color: activeTab === 'transactions' ? '#2563EB' : '#64748B',
-            borderBottom: activeTab === 'transactions' ? '2px solid #2563EB' : '2px solid transparent',
-            background: 'none',
-            borderTop: 'none',
-            borderLeft: 'none',
-            borderRight: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.45rem'
-          }}
-        >
-          <Table size={16} />
-          Transactions Data
-        </button>
-        <button
-          onClick={() => setActiveTab('features')}
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '0.85rem',
-            fontWeight: activeTab === 'features' ? 600 : 500,
-            color: activeTab === 'features' ? '#2563EB' : '#64748B',
-            borderBottom: activeTab === 'features' ? '2px solid #2563EB' : '2px solid transparent',
-            background: 'none',
-            borderTop: 'none',
-            borderLeft: 'none',
-            borderRight: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.45rem'
-          }}
-        >
-          <Database size={16} />
-          Engineered Features
-        </button>
-      </div>
-
-      {/* Filter Bar */}
-      <div className="card" style={{ padding: '0.9rem 1.25rem' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '0.75rem'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <select
-              value={selectedAtm}
-              onChange={e => { setSelectedAtm(e.target.value); setTxPage(1); setFeatPage(1); }}
-              className="form-select"
-              style={{ width: '160px', fontSize: '0.82rem' }}
-            >
-              <option value="All ATMs">All ATMs</option>
-              {atms.map(a => (
-                <option key={a.atm_id} value={a.atm_id}>{a.atm_id} - {a.atm_name}</option>
-              ))}
-            </select>
-
-            <select className="form-select" style={{ width: '140px', fontSize: '0.82rem' }} defaultValue="Date Range">
-              <option value="Date Range">All Dates</option>
-              <option value="Last 7 Days">Last 7 Days</option>
-              <option value="Last 14 Days">Last 14 Days</option>
-            </select>
-
-            <button
-              onClick={handleReset}
-              className="btn-secondary"
-              style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem' }}
-            >
-              <RotateCcw size={14} />
-              Reset
-            </button>
+      <div className="ic-data-header">
+        <div>
+          <div className="ic-data-eyebrow">
+            <Database size={14} />
+            DATA MANAGEMENT / EXPLORATION
           </div>
 
+          <h1>Data Explorer</h1>
+
+          <p>
+            Explore ATM transaction records and machine learning features
+            powering cash demand predictions.
+          </p>
+        </div>
+
+        <button
+          className="ic-data-refresh"
+          onClick={() => {
+            if (activeTab === 'transactions') {
+              loadTransactions();
+            } else {
+              loadFeatures();
+            }
+          }}
+          disabled={loading}
+        >
+          <RefreshCw size={16} className={loading ? 'ic-data-spin' : ''} />
+          Refresh Data
+        </button>
+      </div>
+
+      {/* Overview cards */}
+      <div className="ic-data-stats">
+
+        <div className="ic-data-stat-card">
+          <div className="ic-data-stat-icon blue">
+            <Database size={21} />
+          </div>
+          <div>
+            <span>Available ATMs</span>
+            <h2>{atms.length}</h2>
+            <small>Loaded ATM records</small>
+          </div>
+        </div>
+
+        <div className="ic-data-stat-card">
+          <div className="ic-data-stat-icon purple">
+            <Table size={21} />
+          </div>
+          <div>
+            <span>Transaction Records</span>
+            <h2>{activeTab === 'transactions' ? txTotal : '—'}</h2>
+            <small>Backend record count</small>
+          </div>
+        </div>
+
+        <div className="ic-data-stat-card">
+          <div className="ic-data-stat-icon green">
+            <Layers size={21} />
+          </div>
+          <div>
+            <span>Engineered Features</span>
+            <h2>{activeTab === 'features' ? featTotal : '—'}</h2>
+            <small>Backend record count</small>
+          </div>
+        </div>
+
+        <div className="ic-data-stat-card">
+          <div className="ic-data-stat-icon amber">
+            <Activity size={21} />
+          </div>
+          <div>
+            <span>Displayed Records</span>
+            <h2>{currentRecords}</h2>
+            <small>Records on current page</small>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Data tabs */}
+      <div className="ic-data-tabs">
+
+        <button
+          className={activeTab === 'transactions' ? 'active' : ''}
+          onClick={() => handleTabChange('transactions')}
+        >
+          <Table size={17} />
+          Transactions Data
+          <span className="ic-data-tab-count">{txTotal}</span>
+        </button>
+
+        <button
+          className={activeTab === 'features' ? 'active' : ''}
+          onClick={() => handleTabChange('features')}
+        >
+          <Database size={17} />
+          Engineered Features
+          <span className="ic-data-tab-count">{featTotal}</span>
+        </button>
+
+      </div>
+
+      {/* Filters */}
+      <div className="ic-data-filter-panel">
+
+        <div className="ic-data-filter-heading">
+          <div className="ic-data-filter-icon">
+            <Search size={17} />
+          </div>
+
+          <div>
+            <h3>Explore Records</h3>
+            <p>Filter data by ATM and search transaction records.</p>
+          </div>
+        </div>
+
+        <div className="ic-data-filter-controls">
+
+          <select
+            value={selectedAtm}
+            onChange={(e) => {
+              setSelectedAtm(e.target.value);
+              setTxPage(1);
+              setFeatPage(1);
+            }}
+            className="ic-data-select"
+          >
+            <option value="All ATMs">All ATMs</option>
+
+            {atms.map((atm) => (
+              <option key={atm.atm_id} value={atm.atm_id}>
+                {atm.atm_id} - {atm.atm_name}
+              </option>
+            ))}
+          </select>
+
           {activeTab === 'transactions' && (
-            <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.5rem', width: '250px' }}>
-              <div style={{ position: 'relative', width: '100%' }}>
-                <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search transactions..."
-                  className="form-input"
-                  style={{ paddingLeft: '32px', height: '36px', fontSize: '0.82rem' }}
-                />
-              </div>
+            <form
+              onSubmit={handleSearchSubmit}
+              className="ic-data-search-form"
+            >
+              <Search size={16} />
+
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search transactions..."
+              />
+
+              <button type="submit">Search</button>
             </form>
           )}
+
+          <button
+            onClick={handleReset}
+            className="ic-data-reset"
+          >
+            <RotateCcw size={14} />
+            Reset Filters
+          </button>
+
         </div>
       </div>
 
-      {/* Data Table */}
-      <div className="card" style={{ padding: '0.75rem 1.25rem' }}>
+      {/* Table */}
+      <div className="ic-data-table-panel">
+
+        <div className="ic-data-table-header">
+          <div>
+            <div className="ic-data-table-title">
+              {activeTab === 'transactions' ? (
+                <ArrowDownToLine size={19} />
+              ) : (
+                <Layers size={19} />
+              )}
+
+              <h2>
+                {activeTab === 'transactions'
+                  ? 'Transaction Records'
+                  : 'Engineered Feature Records'}
+              </h2>
+            </div>
+
+            <p>
+              {activeTab === 'transactions'
+                ? 'Detailed ATM withdrawal and deposit transaction history.'
+                : 'Historical and engineered variables used by the forecasting model.'}
+            </p>
+          </div>
+
+          <div className="ic-data-record-badge">
+            {currentTotal} Total Records
+          </div>
+        </div>
+
         {loading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: '#64748B' }}>
-            <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.75rem auto' }} />
-            <div>Loading data...</div>
+          <div className="ic-data-state">
+            <RefreshCw size={27} className="ic-data-spin" />
+            <p>Loading data records...</p>
           </div>
         ) : error ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#DC2626' }}>
-            <div>{error}</div>
+          <div className="ic-data-state error">
+            <FileText size={28} />
+            <p>{error}</p>
+            <button
+              onClick={() => {
+                if (activeTab === 'transactions') {
+                  loadTransactions();
+                } else {
+                  loadFeatures();
+                }
+              }}
+            >
+              Try Again
+            </button>
           </div>
         ) : activeTab === 'transactions' ? (
           <>
-            <div className="data-table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>ATM ID</th>
-                    <th>Transaction Type</th>
-                    <th>Amount</th>
-                    <th>Balance After Txn</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.map(t => (
-                    <tr key={t.transaction_id}>
-                      <td>{formatDateTime(t.transaction_time)}</td>
-                      <td>
-                        <strong style={{ color: '#1E293B' }}>{t.atm_id}</strong>
-                      </td>
-                      <td>
-                        <span className={t.transaction_type === 'Withdrawal' ? 'badge-risk-medium' : 'badge-status-active'}>
-                          {t.transaction_type}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{formatINR(t.amount)}</td>
-                      <td style={{ fontWeight: 600 }}>{formatINR(t.balance_after)}</td>
+            {transactions.length === 0 ? (
+              <div className="ic-data-state">
+                <Database size={30} />
+                <h3>No transaction records found</h3>
+                <p>Try another ATM or search keyword.</p>
+              </div>
+            ) : (
+              <div className="ic-data-table-wrapper">
+                <table className="ic-data-table">
+                  <thead>
+                    <tr>
+                      <th>TRANSACTION DATE</th>
+                      <th>ATM ID</th>
+                      <th>TRANSACTION TYPE</th>
+                      <th>AMOUNT</th>
+                      <th>BALANCE AFTER</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
 
-            <Pagination
-              currentPage={txPage}
-              totalPages={txTotalPages}
-              totalRecords={txTotal}
-              pageSize={5}
-              onPageChange={setTxPage}
-              entityName="records"
-            />
+                  <tbody>
+                    {transactions.map((t) => (
+                      <tr key={t.transaction_id}>
+                        <td>
+                          <div className="ic-data-date">
+                            {formatDateTime(t.transaction_time)}
+                          </div>
+                        </td>
+
+                        <td>
+                          <strong className="ic-data-atm-id">
+                            {t.atm_id}
+                          </strong>
+                        </td>
+
+                        <td>
+                          <span
+                            className={
+                              t.transaction_type === 'Withdrawal'
+                                ? 'ic-data-type withdrawal'
+                                : 'ic-data-type deposit'
+                            }
+                          >
+                            {t.transaction_type === 'Withdrawal' ? (
+                              <ArrowUpFromLine size={13} />
+                            ) : (
+                              <ArrowDownToLine size={13} />
+                            )}
+                            {t.transaction_type}
+                          </span>
+                        </td>
+
+                        <td>
+                          <strong className="ic-data-amount">
+                            {formatINR(t.amount)}
+                          </strong>
+                        </td>
+
+                        <td>
+                          <span className="ic-data-balance">
+                            {formatINR(t.balance_after)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="ic-data-pagination">
+              <Pagination
+                currentPage={txPage}
+                totalPages={txTotalPages}
+                totalRecords={txTotal}
+                pageSize={5}
+                onPageChange={setTxPage}
+                entityName="records"
+              />
+            </div>
           </>
         ) : (
           <>
-            <div className="data-table-container">
-              <table className="data-table" style={{ fontSize: '0.78rem' }}>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>ATM</th>
-                    <th>Hour</th>
-                    <th>DOW</th>
-                    <th>Weekend</th>
-                    <th>Holiday</th>
-                    <th>Total Balance</th>
-                    <th>Outcomes</th>
-                    <th>Total Tx</th>
-                    <th>Prev Demand</th>
-                    <th>Prev Tx Count</th>
-                    <th>Rolling Mean 3</th>
-                    <th>Target Demand</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {features.map(f => (
-                    <tr key={f.id}>
-                      <td>{f.id}</td>
-                      <td><strong>{f.atm_id}</strong></td>
-                      <td>{f.hour}</td>
-                      <td>{f.day_of_week}</td>
-                      <td>{f.is_weekend}</td>
-                      <td>{f.is_holiday}</td>
-                      <td style={{ fontWeight: 600 }}>{formatINR(f.totalBalance)}</td>
-                      <td>{f.numberOutcomeTransaction}</td>
-                      <td>{f.totalNumberTransaction}</td>
-                      <td>{formatINR(f.previous_demand)}</td>
-                      <td>{f.previous_transaction_count}</td>
-                      <td>{formatINR(f.rolling_mean_3)}</td>
-                      <td style={{ fontWeight: 600, color: '#2563EB' }}>{formatINR(f.target_demand)}</td>
+            {features.length === 0 ? (
+              <div className="ic-data-state">
+                <Layers size={30} />
+                <h3>No engineered features found</h3>
+                <p>There are no feature records for this selection.</p>
+              </div>
+            ) : (
+              <div className="ic-data-table-wrapper">
+                <table className="ic-data-table ic-feature-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>ATM</th>
+                      <th>HOUR</th>
+                      <th>DAY OF WEEK</th>
+                      <th>WEEKEND</th>
+                      <th>HOLIDAY</th>
+                      <th>TOTAL BALANCE</th>
+                      <th>OUTCOMES</th>
+                      <th>TOTAL TX</th>
+                      <th>PREVIOUS DEMAND</th>
+                      <th>PREVIOUS TX COUNT</th>
+                      <th>ROLLING MEAN 3</th>
+                      <th>TARGET DEMAND</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
 
-            <Pagination
-              currentPage={featPage}
-              totalPages={featTotalPages}
-              totalRecords={featTotal}
-              pageSize={5}
-              onPageChange={setFeatPage}
-              entityName="engineered features"
-            />
+                  <tbody>
+                    {features.map((f) => (
+                      <tr key={f.id}>
+                        <td>{f.id}</td>
+
+                        <td>
+                          <strong className="ic-data-atm-id">
+                            {f.atm_id}
+                          </strong>
+                        </td>
+
+                        <td>{f.hour}</td>
+                        <td>{f.day_of_week}</td>
+                        <td>{f.is_weekend}</td>
+                        <td>{f.is_holiday}</td>
+
+                        <td>{formatINR(f.totalBalance)}</td>
+                        <td>{f.numberOutcomeTransaction}</td>
+                        <td>{f.totalNumberTransaction}</td>
+                        <td>{formatINR(f.previous_demand)}</td>
+                        <td>{f.previous_transaction_count}</td>
+                        <td>{formatINR(f.rolling_mean_3)}</td>
+
+                        <td>
+                          <strong className="ic-data-target">
+                            {formatINR(f.target_demand)}
+                          </strong>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="ic-data-pagination">
+              <Pagination
+                currentPage={featPage}
+                totalPages={featTotalPages}
+                totalRecords={featTotal}
+                pageSize={5}
+                onPageChange={setFeatPage}
+                entityName="engineered features"
+              />
+            </div>
           </>
         )}
+
       </div>
+
+      {/* Information footer */}
+      <div className="ic-data-info">
+        <Database size={18} />
+        <span>
+          Data Explorer displays records retrieved from the IntelliCash
+          backend. Engineered features provide historical inputs for
+          machine learning forecasts.
+        </span>
+      </div>
+
     </div>
   );
 };

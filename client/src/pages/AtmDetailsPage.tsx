@@ -1,15 +1,21 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   ArrowLeft,
   MapPin,
-  Calendar,
-  AlertCircle,
-  TrendingUp,
   RefreshCw,
   Landmark,
   ShieldAlert,
+  Activity,
+  Wallet,
+  TrendingUp,
   Clock,
-  Compass
+  Compass,
+  CalendarDays,
+  Database,
+  AlertCircle,
+  MapPinned,
+  Gauge,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -19,8 +25,9 @@ import {
   YAxis,
   Tooltip,
   Legend,
-  CartesianGrid
+  CartesianGrid,
 } from 'recharts';
+
 import { api } from '../lib/api';
 import { ATMDetail, Transaction, Prediction, TrendPoint } from '../types';
 import { formatINR, formatDateTime } from '../lib/formatters';
@@ -32,14 +39,19 @@ interface AtmDetailsPageProps {
   onNavigate: (page: PageId) => void;
 }
 
-export const AtmDetailsPage: React.FC<AtmDetailsPageProps> = ({ atmId, onNavigate }) => {
+type AtmTab = 'trend' | 'transactions' | 'predictions' | 'location';
+
+export const AtmDetailsPage: React.FC<AtmDetailsPageProps> = ({
+  atmId,
+  onNavigate,
+}) => {
   const [atm, setAtm] = useState<ATMDetail | null>(null);
-  const [activeTab, setActiveTab] = useState<'trend' | 'transactions' | 'predictions' | 'location'>('trend');
+  const [activeTab, setActiveTab] = useState<AtmTab>('trend');
   const [trendData, setTrendData] = useState<TrendPoint[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
-  
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,13 +61,15 @@ export const AtmDetailsPage: React.FC<AtmDetailsPageProps> = ({ atmId, onNavigat
   const loadDetails = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const [atmRes, trendRes, txRes, predRes] = await Promise.all([
         api.getAtmDetails(atmId),
         api.getAtmTrend(atmId, 14),
         api.getAtmTransactions(atmId, 1, 10),
-        api.getAtmPredictions(atmId, 1, 10)
+        api.getAtmPredictions(atmId, 1, 10),
       ]);
+
       setAtm(atmRes);
       setTrendData(trendRes);
       setTransactions(txRes.items);
@@ -64,270 +78,354 @@ export const AtmDetailsPage: React.FC<AtmDetailsPageProps> = ({ atmId, onNavigat
       setError(err.message || 'Failed to load ATM details.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadDetails();
+  };
+
+  const tabs: { id: AtmTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'trend', label: 'Demand Trend', icon: <TrendingUp size={16} /> },
+    { id: 'transactions', label: 'Transactions', icon: <Activity size={16} /> },
+    { id: 'predictions', label: 'Prediction History', icon: <CalendarDays size={16} /> },
+    { id: 'location', label: 'Location Info', icon: <MapPin size={16} /> },
+  ];
+
   if (loading) {
     return (
-      <div style={{ padding: '3rem', textAlign: 'center', color: '#64748B' }}>
-        <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 1rem auto' }} />
-        <div>Loading ATM details...</div>
+      <div className="ic-atm-details-state">
+        <RefreshCw size={30} className="ic-atm-spin" />
+        <h3>Loading ATM intelligence...</h3>
+        <p>Fetching ATM details, demand trends and transaction records.</p>
       </div>
     );
   }
 
   if (error || !atm) {
     return (
-      <div style={{ padding: '2rem' }}>
-        <button onClick={() => onNavigate('atm-network')} className="btn-secondary" style={{ marginBottom: '1rem' }}>
-          <ArrowLeft size={16} /> Back to Network
+      <div className="ic-atm-details-error">
+        <button
+          className="ic-atm-back-button"
+          onClick={() => onNavigate('atm-network')}
+        >
+          <ArrowLeft size={16} />
+          Back to ATM Network
         </button>
-        <div className="card" style={{ backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', color: '#DC2626', padding: '1.5rem' }}>
-          <h3>Failed to load ATM: {atmId}</h3>
-          <p>{error}</p>
+
+        <div className="ic-atm-error-card">
+          <AlertCircle size={30} />
+          <h3>Unable to load ATM details</h3>
+          <p>{error || `No details found for ATM ${atmId}.`}</p>
+          <button onClick={loadDetails} className="ic-atm-retry-button">
+            <RefreshCw size={15} />
+            Try Again
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Top Header with Back Button */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="ic-atm-details">
+      {/* Header */}
+      <div className="ic-atm-details-header">
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.2rem' }}>
-            ATM Details - {atm.atm_id}
-          </h1>
-          <p style={{ fontSize: '0.84rem', color: '#64748B' }}>
-            Detailed information, predictions and transaction history
-          </p>
+          <div className="ic-atm-details-eyebrow">
+            <Activity size={14} />
+            ATM INTELLIGENCE / NETWORK DETAILS
+          </div>
+
+          <h1>ATM Details</h1>
+          <p>Monitor cash position, demand patterns and operational risk.</p>
         </div>
 
-        <button
-          onClick={() => onNavigate('atm-network')}
-          className="btn-secondary"
-          style={{ fontSize: '0.82rem', padding: '0.45rem 0.85rem' }}
-        >
-          <ArrowLeft size={15} />
-          Back to Network
-        </button>
-      </div>
+        <div className="ic-atm-header-actions">
+          <button
+            className="ic-atm-refresh-button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw
+              size={15}
+              className={refreshing ? 'ic-atm-spin' : ''}
+            />
+            Refresh
+          </button>
 
-      {/* ATM Summary Banner Card */}
-      <div className="card" style={{ padding: '1.25rem' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1.3fr 2.7fr',
-          gap: '1.5rem',
-          alignItems: 'center'
-        }}>
-          {/* Left: ATM Info & Thumbnail */}
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <div style={{
-              width: '90px',
-              height: '90px',
-              borderRadius: '10px',
-              backgroundColor: '#1E293B',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#FFFFFF',
-              flexShrink: 0
-            }}>
-              <Landmark size={36} color="#60A5FA" />
-              <span style={{ fontSize: '0.65rem', color: '#94A3B8', marginTop: '4px' }}>ATM KIOSK</span>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#0F172A' }}>
-                  {atm.atm_id}
-                </h2>
-                <span className={atm.status === 'Active' ? 'badge-status-active' : 'badge-status-pending'}>
-                  {atm.status}
-                </span>
-                <RiskBadge risk={atm.risk_level} />
-              </div>
-              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#334155' }}>
-                {atm.atm_name}
-              </div>
-              <div style={{ fontSize: '0.78rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.25rem' }}>
-                <MapPin size={13} />
-                <span>{atm.atm_address || `${atm.atm_name}, ${atm.city}`}</span>
-              </div>
-              {atm.latitude && atm.longitude && (
-                <div style={{ fontSize: '0.72rem', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.2rem' }}>
-                  <Compass size={12} />
-                  <span>{atm.latitude}° N, {atm.longitude}° E</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right: 4 Stat Cards */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: '0.75rem'
-          }}>
-            <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '0.75rem' }}>
-              <div style={{ fontSize: '0.72rem', color: '#991B1B', fontWeight: 500 }}>Current Balance</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#DC2626', marginTop: '0.2rem' }}>
-                {formatINR(atm.current_balance)}
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #DBEAFE', borderRadius: '8px', padding: '0.75rem' }}>
-              <div style={{ fontSize: '0.72rem', color: '#1E40AF', fontWeight: 500 }}>Predicted Demand</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#2563EB', marginTop: '0.2rem' }}>
-                {formatINR(atm.predicted_demand)}
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '0.75rem' }}>
-              <div style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 500 }}>Recommended Refill</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#16A34A', marginTop: '0.2rem' }}>
-                {formatINR(atm.recommended_refill)}
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.75rem' }}>
-              <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>Last Prediction</div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A', marginTop: '0.35rem' }}>
-                {formatDateTime(atm.last_prediction_time)}
-              </div>
-            </div>
-          </div>
+          <button
+            className="ic-atm-back-button"
+            onClick={() => onNavigate('atm-network')}
+          >
+            <ArrowLeft size={16} />
+            Back to Network
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.25rem' }}>
-        {[
-          { id: 'trend', label: 'Demand Trend' },
-          { id: 'transactions', label: 'Transactions' },
-          { id: 'predictions', label: 'Prediction History' },
-          { id: 'location', label: 'Location Info' }
-        ].map(tab => (
+      {/* ATM Identity and Summary */}
+      <section className="ic-atm-identity-panel">
+        <div className="ic-atm-identity">
+          <div className="ic-atm-identity-icon">
+            <Landmark size={31} />
+            <span>ATM</span>
+          </div>
+
+          <div className="ic-atm-identity-info">
+            <div className="ic-atm-identity-title">
+              <h2>{atm.atm_id}</h2>
+              <span
+                className={`ic-atm-status ${
+                  atm.status === 'Active' ? 'active' : 'inactive'
+                }`}
+              >
+                <span />
+                {atm.status}
+              </span>
+              <RiskBadge risk={atm.risk_level} />
+            </div>
+
+            <h3>{atm.atm_name}</h3>
+
+            <p className="ic-atm-address">
+              <MapPin size={14} />
+              {atm.atm_address || `${atm.atm_name}, ${atm.city}`}
+            </p>
+
+            {atm.latitude != null && atm.longitude != null && (
+              <p className="ic-atm-coordinates">
+                <Compass size={13} />
+                {atm.latitude}° N, {atm.longitude}° E
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="ic-atm-summary-grid">
+          <div className="ic-atm-summary-card balance">
+            <div className="ic-atm-summary-label">
+              <Wallet size={15} />
+              Current Balance
+            </div>
+            <strong>{formatINR(atm.current_balance)}</strong>
+            <span>Available cash</span>
+          </div>
+
+          <div className="ic-atm-summary-card demand">
+            <div className="ic-atm-summary-label">
+              <TrendingUp size={15} />
+              Predicted Demand
+            </div>
+            <strong>{formatINR(atm.predicted_demand)}</strong>
+            <span>Forecasted requirement</span>
+          </div>
+
+          <div className="ic-atm-summary-card refill">
+            <div className="ic-atm-summary-label">
+              <Wallet size={15} />
+              Recommended Refill
+            </div>
+            <strong>{formatINR(atm.recommended_refill)}</strong>
+            <span>Suggested replenishment</span>
+          </div>
+
+          <div className="ic-atm-summary-card prediction-time">
+            <div className="ic-atm-summary-label">
+              <Clock size={15} />
+              Last Prediction
+            </div>
+            <strong className="ic-atm-last-prediction">
+              {formatDateTime(atm.last_prediction_time)}
+            </strong>
+            <span>Latest forecast timestamp</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Navigation Tabs */}
+      <div className="ic-atm-tabs">
+        {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            style={{
-              padding: '0.5rem 1rem',
-              fontSize: '0.85rem',
-              fontWeight: activeTab === tab.id ? 600 : 500,
-              color: activeTab === tab.id ? '#2563EB' : '#64748B',
-              borderBottom: activeTab === tab.id ? '2px solid #2563EB' : '2px solid transparent',
-              background: 'none',
-              borderTop: 'none',
-              borderLeft: 'none',
-              borderRight: 'none',
-              cursor: 'pointer'
-            }}
+            className={`ic-atm-tab ${
+              activeTab === tab.id ? 'active' : ''
+            }`}
+            onClick={() => setActiveTab(tab.id)}
           >
+            {tab.icon}
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Tab 1: Demand Trend */}
+      {/* Demand Trend */}
       {activeTab === 'trend' && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
-          gap: '1.25rem'
-        }}>
-          {/* Chart */}
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A' }}>
-                Actual vs Predicted Cash Demand
-              </h3>
-              <select className="form-select" style={{ width: '120px', fontSize: '0.78rem' }} defaultValue="Last 14 days">
-                <option value="Last 14 days">Last 14 days</option>
-              </select>
+        <div className="ic-atm-trend-grid">
+          <section className="ic-atm-panel">
+            <div className="ic-atm-panel-heading">
+              <div>
+                <span className="ic-atm-panel-eyebrow">CASH FORECAST</span>
+                <h3>Actual vs Predicted Demand</h3>
+                <p>Demand trend for the last 14 days</p>
+              </div>
+              <div className="ic-atm-panel-icon blue">
+                <TrendingUp size={19} />
+              </div>
             </div>
 
-            <div style={{ width: '100%', height: '260px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData} margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="date" tick={{ fill: '#64748B', fontSize: 11 }} />
-                  <YAxis tickFormatter={(val) => formatINR(val, true)} tick={{ fill: '#64748B', fontSize: 11 }} />
-                  <Tooltip
-                    formatter={(val: any) => [formatINR(Number(val)), '']}
-                    contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px' }}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
-                  <Line type="monotone" dataKey="actual_demand" name="Actual" stroke="#1D4ED8" strokeWidth={2.5} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="predicted_demand" name="Predicted" stroke="#38BDF8" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="ic-atm-trend-chart">
+              {trendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={trendData}
+                    margin={{ top: 12, right: 15, left: 5, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="#26364f"
+                    />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      axisLine={{ stroke: '#334155' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tickFormatter={(value) => formatINR(value, true)}
+                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      formatter={(value: any) => [
+                        formatINR(Number(value)),
+                        '',
+                      ]}
+                      contentStyle={{
+                        backgroundColor: '#111f35',
+                        border: '1px solid #334155',
+                        borderRadius: '10px',
+                        color: '#f8fafc',
+                        fontSize: '12px',
+                      }}
+                      labelStyle={{ color: '#cbd5e1' }}
+                    />
+                    <Legend
+                      iconType="circle"
+                      wrapperStyle={{
+                        fontSize: '12px',
+                        color: '#cbd5e1',
+                        paddingTop: '12px',
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="actual_demand"
+                      name="Actual Demand"
+                      stroke="#38bdf8"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: '#38bdf8' }}
+                      activeDot={{ r: 5 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="predicted_demand"
+                      name="Predicted Demand"
+                      stroke="#a78bfa"
+                      strokeWidth={2.5}
+                      strokeDasharray="5 5"
+                      dot={{ r: 3, fill: '#a78bfa' }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="ic-atm-empty">
+                  <Activity size={27} />
+                  <p>No demand trend data available for this ATM.</p>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Risk Analysis Card */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.5rem' }}>
-              Risk Analysis
-            </h3>
+            <div className="ic-atm-chart-note">
+              <span className="ic-atm-chart-dot blue" />
+              Actual demand
+              <span className="ic-atm-chart-dot purple" />
+              Predicted demand
+            </div>
+          </section>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem' }}>
-              <span style={{ color: '#64748B' }}>Risk Level</span>
+          <section className="ic-atm-panel ic-atm-risk-panel">
+            <div className="ic-atm-panel-heading">
+              <div>
+                <span className="ic-atm-panel-eyebrow">RISK INTELLIGENCE</span>
+                <h3>ATM Risk Analysis</h3>
+                <p>Operational indicators</p>
+              </div>
+              <div className="ic-atm-panel-icon amber">
+                <ShieldAlert size={19} />
+              </div>
+            </div>
+
+            <div className="ic-atm-risk-main">
+              <span>Current Risk Level</span>
               <RiskBadge risk={atm.risk_level} />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem' }}>
-              <span style={{ color: '#64748B' }}>Safety Factor</span>
-              <strong style={{ color: '#0F172A' }}>{atm.safety_factor}</strong>
+            <div className="ic-atm-risk-list">
+              <div>
+                <span>Safety Factor</span>
+                <strong>{atm.safety_factor}</strong>
+              </div>
+              <div>
+                <span>Average Daily Withdrawal</span>
+                <strong>{formatINR(atm.avg_daily_withdrawal)}</strong>
+              </div>
+              <div>
+                <span>Peak Day</span>
+                <strong>{atm.peak_day || '—'}</strong>
+              </div>
+              <div>
+                <span>Volatility</span>
+                <strong className={atm.volatility === 'High' ? 'high' : ''}>
+                  {atm.volatility || '—'}
+                </strong>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem' }}>
-              <span style={{ color: '#64748B' }}>Avg. Daily Withdrawal</span>
-              <strong style={{ color: '#0F172A' }}>{formatINR(atm.avg_daily_withdrawal)}</strong>
+            <div className="ic-atm-suggested-action">
+              <div>
+                <ShieldAlert size={16} />
+                Suggested Action
+              </div>
+              <p>{atm.suggested_action || 'No suggested action available.'}</p>
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem' }}>
-              <span style={{ color: '#64748B' }}>Peak Day</span>
-              <strong style={{ color: '#0F172A' }}>{atm.peak_day}</strong>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem' }}>
-              <span style={{ color: '#64748B' }}>Volatility</span>
-              <strong style={{ color: atm.volatility === 'High' ? '#DC2626' : '#0F172A' }}>
-                {atm.volatility}
-              </strong>
-            </div>
-
-            <div style={{
-              marginTop: '0.5rem',
-              backgroundColor: '#F8FAFC',
-              border: '1px solid #E2E8F0',
-              borderRadius: '8px',
-              padding: '0.75rem',
-              fontSize: '0.8rem'
-            }}>
-              <span style={{ color: '#64748B', display: 'block', marginBottom: '0.2rem' }}>Suggested Action</span>
-              <strong style={{ color: atm.risk_level === 'HIGH' ? '#DC2626' : '#1D4ED8' }}>
-                {atm.suggested_action}
-              </strong>
-            </div>
-          </div>
+          </section>
         </div>
       )}
 
-      {/* Tab 2: Transactions */}
+      {/* Transactions */}
       {activeTab === 'transactions' && (
-        <div className="card">
-          <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A', marginBottom: '1rem' }}>
-            Recent ATM Transactions
-          </h3>
-          <div className="data-table-container">
-            <table className="data-table">
+        <section className="ic-atm-panel">
+          <div className="ic-atm-panel-heading">
+            <div>
+              <span className="ic-atm-panel-eyebrow">TRANSACTION RECORDS</span>
+              <h3>Recent ATM Transactions</h3>
+              <p>Latest 10 transaction records for {atm.atm_id}</p>
+            </div>
+            <div className="ic-atm-panel-icon blue">
+              <Activity size={19} />
+            </div>
+          </div>
+
+          <div className="ic-atm-table-wrap">
+            <table className="ic-atm-detail-table">
               <thead>
                 <tr>
-                  <th>Time</th>
+                  <th>Transaction Time</th>
                   <th>Type</th>
                   <th>Amount</th>
                   <th>Balance After</th>
@@ -335,36 +433,55 @@ export const AtmDetailsPage: React.FC<AtmDetailsPageProps> = ({ atmId, onNavigat
                 </tr>
               </thead>
               <tbody>
-                {transactions.map(t => (
-                  <tr key={t.transaction_id}>
-                    <td>{formatDateTime(t.transaction_time)}</td>
+                {transactions.map((transaction) => (
+                  <tr key={transaction.transaction_id}>
+                    <td>{formatDateTime(transaction.transaction_time)}</td>
                     <td>
-                      <span className="badge-status-active">{t.transaction_type}</span>
+                      <span className="ic-atm-transaction-type">
+                        {transaction.transaction_type}
+                      </span>
                     </td>
-                    <td style={{ fontWeight: 600 }}>{formatINR(t.amount)}</td>
-                    <td style={{ fontWeight: 600 }}>{formatINR(t.balance_after)}</td>
-                    <td>{t.outcome_count}</td>
+                    <td className="ic-atm-table-amount">
+                      {formatINR(transaction.amount)}
+                    </td>
+                    <td>{formatINR(transaction.balance_after)}</td>
+                    <td>{transaction.outcome_count}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
+            {transactions.length === 0 && (
+              <div className="ic-atm-empty">
+                <Database size={26} />
+                <p>No transaction records available for this ATM.</p>
+              </div>
+            )}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Tab 3: Predictions */}
+      {/* Prediction History */}
       {activeTab === 'predictions' && (
-        <div className="card">
-          <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A', marginBottom: '1rem' }}>
-            Historical Predictions for {atm.atm_id}
-          </h3>
-          <div className="data-table-container">
-            <table className="data-table">
+        <section className="ic-atm-panel">
+          <div className="ic-atm-panel-heading">
+            <div>
+              <span className="ic-atm-panel-eyebrow">FORECAST RECORDS</span>
+              <h3>Prediction History</h3>
+              <p>Historical forecasts generated for {atm.atm_id}</p>
+            </div>
+            <div className="ic-atm-panel-icon purple">
+              <CalendarDays size={19} />
+            </div>
+          </div>
+
+          <div className="ic-atm-table-wrap">
+            <table className="ic-atm-detail-table">
               <thead>
                 <tr>
                   <th>Prediction Time</th>
                   <th>Period</th>
-                  <th>Demand</th>
+                  <th>Predicted Demand</th>
                   <th>Balance Used</th>
                   <th>Risk</th>
                   <th>Recommended Refill</th>
@@ -372,61 +489,98 @@ export const AtmDetailsPage: React.FC<AtmDetailsPageProps> = ({ atmId, onNavigat
                 </tr>
               </thead>
               <tbody>
-                {predictions.map(p => (
-                  <tr key={p.prediction_id}>
-                    <td>{formatDateTime(p.prediction_time)}</td>
-                    <td>{p.prediction_period}</td>
-                    <td style={{ fontWeight: 600, color: '#2563EB' }}>{formatINR(p.predicted_demand)}</td>
-                    <td style={{ fontWeight: 600 }}>{formatINR(p.current_balance)}</td>
-                    <td><RiskBadge risk={p.risk_level} /></td>
-                    <td style={{ fontWeight: 600, color: '#DC2626' }}>{formatINR(p.recommended_refill)}</td>
+                {predictions.map((prediction) => (
+                  <tr key={prediction.prediction_id}>
+                    <td>{formatDateTime(prediction.prediction_time)}</td>
+                    <td>{prediction.prediction_period}</td>
+                    <td className="ic-atm-table-amount">
+                      {formatINR(prediction.predicted_demand)}
+                    </td>
+                    <td>{formatINR(prediction.current_balance)}</td>
+                    <td><RiskBadge risk={prediction.risk_level} /></td>
+                    <td className="ic-atm-table-refill">
+                      {formatINR(prediction.recommended_refill)}
+                    </td>
                     <td>
-                      <span className={p.review_status === 'Reviewed' ? 'badge-status-reviewed' : 'badge-status-pending'}>
-                        {p.review_status}
+                      <span
+                        className={`ic-atm-review-status ${
+                          prediction.review_status === 'Reviewed'
+                            ? 'reviewed'
+                            : 'pending'
+                        }`}
+                      >
+                        {prediction.review_status}
                       </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
+            {predictions.length === 0 && (
+              <div className="ic-atm-empty">
+                <CalendarDays size={26} />
+                <p>No prediction history available for this ATM.</p>
+              </div>
+            )}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Tab 4: Location Info */}
+      {/* Location */}
       {activeTab === 'location' && (
-        <div className="card" style={{ maxWidth: '600px' }}>
-          <h3 style={{ fontSize: '0.96rem', fontWeight: 600, color: '#0F172A', marginBottom: '1rem' }}>
-            ATM Location and Hardware Details
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>ATM Identifier:</span>
-              <strong>{atm.atm_id}</strong>
+        <section className="ic-atm-location-grid">
+          <div className="ic-atm-panel">
+            <div className="ic-atm-panel-heading">
+              <div>
+                <span className="ic-atm-panel-eyebrow">ATM INFORMATION</span>
+                <h3>Location and Hardware Details</h3>
+                <p>Registered information for this ATM</p>
+              </div>
+              <div className="ic-atm-panel-icon blue">
+                <MapPinned size={19} />
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>Branch / Location:</span>
-              <strong>{atm.atm_name}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>City:</span>
-              <strong>{atm.city}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>Address:</span>
-              <strong>{atm.atm_address}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>Latitude / Longitude:</span>
-              <strong>{atm.latitude}° N, {atm.longitude}° E</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#64748B' }}>Operating Status:</span>
-              <strong style={{ color: '#16A34A' }}>{atm.status}</strong>
+
+            <div className="ic-atm-location-list">
+              <div><span>ATM Identifier</span><strong>{atm.atm_id}</strong></div>
+              <div><span>Branch / Location</span><strong>{atm.atm_name}</strong></div>
+              <div><span>City</span><strong>{atm.city}</strong></div>
+              <div><span>Address</span><strong>{atm.atm_address || '—'}</strong></div>
+              <div>
+                <span>Latitude / Longitude</span>
+                <strong>
+                  {atm.latitude != null && atm.longitude != null
+                    ? `${atm.latitude}, ${atm.longitude}`
+                    : 'Not available'}
+                </strong>
+              </div>
+              <div><span>Operating Status</span><strong>{atm.status}</strong></div>
+              <div><span>Risk Level</span><strong><RiskBadge risk={atm.risk_level} /></strong></div>
             </div>
           </div>
-        </div>
+
+          <div className="ic-atm-panel ic-atm-location-note">
+            <div className="ic-atm-panel-icon green">
+              <Gauge size={21} />
+            </div>
+            <h3>Operational Overview</h3>
+            <p>
+              This section displays the location and operational information
+              returned by the IntelliCash backend for the selected ATM.
+            </p>
+            <div className="ic-atm-location-status">
+              <span className={atm.status === 'Active' ? 'active' : 'inactive'} />
+              {atm.status}
+            </div>
+          </div>
+        </section>
       )}
+
+      <div className="ic-atm-details-footer">
+        <span>INTELLICASH ATM INTELLIGENCE</span>
+        <span>ATM ID: {atm.atm_id}</span>
+      </div>
     </div>
   );
 };

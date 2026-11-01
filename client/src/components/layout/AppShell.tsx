@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   Network,
@@ -10,9 +11,11 @@ import {
   Settings,
   LogOut,
   Landmark,
-  Search,
-  Bell,
-  Calendar
+  Menu,
+  X,
+  ChevronRight,
+  ShieldCheck,
+  CalendarDays
 } from 'lucide-react';
 import { User } from '../../types';
 
@@ -36,15 +39,27 @@ interface AppShellProps {
 }
 
 const NAV_ITEMS: { id: PageId; label: string; icon: React.ReactNode }[] = [
-  { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={18} /> },
-  { id: 'atm-network', label: 'ATM Network', icon: <Network size={18} /> },
-  { id: 'predictions', label: 'Predictions', icon: <TrendingUp size={18} /> },
-  { id: 'refill-actions', label: 'Refill Actions', icon: <RefreshCw size={18} /> },
-  { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
-  { id: 'data-explorer', label: 'Data Explorer', icon: <Database size={18} /> },
-  { id: 'prediction-history', label: 'Prediction History', icon: <History size={18} /> },
-  { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+  { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={19} /> },
+  { id: 'atm-network', label: 'ATM Network', icon: <Network size={19} /> },
+  { id: 'predictions', label: 'Predictions', icon: <TrendingUp size={19} /> },
+  { id: 'refill-actions', label: 'Refill Actions', icon: <RefreshCw size={19} /> },
+  { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={19} /> },
+  { id: 'data-explorer', label: 'Data Explorer', icon: <Database size={19} /> },
+  { id: 'prediction-history', label: 'Prediction History', icon: <History size={19} /> },
+  { id: 'settings', label: 'Settings', icon: <Settings size={19} /> },
 ];
+
+const PAGE_LABELS: Record<PageId, string> = {
+  overview: 'Overview',
+  'atm-network': 'ATM Network',
+  predictions: 'Predictions',
+  'refill-actions': 'Refill Actions',
+  analytics: 'Analytics',
+  'data-explorer': 'Data Explorer',
+  'prediction-history': 'Prediction History',
+  settings: 'Settings',
+  'atm-details': 'ATM Details',
+};
 
 export const AppShell: React.FC<AppShellProps> = ({
   currentPage,
@@ -53,245 +68,157 @@ export const AppShell: React.FC<AppShellProps> = ({
   onLogout,
   children
 }) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const isInitialActive = (id: PageId) =>
+    currentPage === id ||
+    (id === 'atm-network' && currentPage === 'atm-details');
+
+  const initials = (currentUser?.name || 'Admin')
+    .split(' ')
+    .filter(Boolean)
+    .map(part => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const handleNavigation = (page: PageId) => {
+    onNavigate(page);
+    setMobileMenuOpen(false);
+  };
+
   return (
-    <div className="app-container">
+    <div className="ic-shell">
+
+      {/* Mobile overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="ic-sidebar-overlay"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="sidebar">
-        {/* Brand Header */}
-        <div style={{
-          padding: '1.25rem 1.1rem',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem'
-        }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '6px',
-            backgroundColor: '#2563EB',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#FFFFFF'
-          }}>
-            <Landmark size={20} />
+      <aside className={`ic-sidebar ${mobileMenuOpen ? 'ic-sidebar-open' : ''}`}>
+
+        <div className="ic-sidebar-brand">
+          <div className="ic-brand-logo">
+            <Landmark size={23} />
           </div>
-          <div>
-            <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF', lineHeight: 1.2 }}>
-              ATM Cash
-            </div>
-            <div style={{ fontSize: '0.72rem', color: '#94A3B8', fontWeight: 500 }}>
-              Demand Predictor
-            </div>
+
+          <div className="ic-brand-text">
+            <h2>IntelliCash</h2>
+            <span>ATM CASH INTELLIGENCE</span>
           </div>
+
+          <button
+            className="ic-mobile-close"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close navigation"
+          >
+            <X size={21} />
+          </button>
         </div>
 
-        {/* Navigation Items */}
-        <nav style={{ padding: '0.85rem 0.65rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
+        <div className="ic-sidebar-label">WORKSPACE</div>
+
+        <nav className="ic-sidebar-nav">
           {NAV_ITEMS.map(item => {
-            const isActive = currentPage === item.id || (item.id === 'atm-network' && currentPage === 'atm-details');
+            const isActive = isInitialActive(item.id);
+
             return (
               <button
                 key={item.id}
-                onClick={() => onNavigate(item.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  backgroundColor: isActive ? '#2563EB' : 'transparent',
-                  color: isActive ? '#FFFFFF' : '#94A3B8',
-                  fontWeight: isActive ? 600 : 500,
-                  fontSize: '0.84rem',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  width: '100%',
-                  transition: 'background-color 0.15s ease, color 0.15s ease'
-                }}
-                onMouseEnter={e => {
-                  if (!isActive) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
-                    e.currentTarget.style.color = '#FFFFFF';
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = '#94A3B8';
-                  }
-                }}
+                className={`ic-nav-item ${isActive ? 'ic-nav-active' : ''}`}
+                onClick={() => handleNavigation(item.id)}
               >
-                {item.icon}
-                <span>{item.label}</span>
+                <span className="ic-nav-icon">{item.icon}</span>
+                <span className="ic-nav-label">{item.label}</span>
+                {isActive && <ChevronRight size={16} className="ic-nav-arrow" />}
               </button>
             );
           })}
         </nav>
 
-        {/* Logout at bottom */}
-        <div style={{
-          padding: '0.85rem 0.65rem',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)'
-        }}>
-          <button
-            onClick={onLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              padding: '0.65rem 0.85rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: '#94A3B8',
-              fontWeight: 500,
-              fontSize: '0.84rem',
-              cursor: 'pointer',
-              textAlign: 'left',
-              width: '100%',
-              transition: 'background-color 0.15s ease, color 0.15s ease'
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
-              e.currentTarget.style.color = '#FCA5A5';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = '#94A3B8';
-            }}
-          >
-            <LogOut size={18} />
-            <span>Logout</span>
+        <div className="ic-sidebar-bottom">
+
+          <div className="ic-sidebar-security">
+            <div className="ic-security-icon">
+              <ShieldCheck size={18} />
+            </div>
+            <div>
+              <strong>Secure Workspace</strong>
+              <span>Protected session</span>
+            </div>
+          </div>
+
+          <button className="ic-logout-button" onClick={onLogout}>
+            <LogOut size={19} />
+            <span>Sign Out</span>
           </button>
+
+          <div className="ic-sidebar-version">
+            IntelliCash · Dashboard
+          </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="main-content">
-        {/* Top Header Bar */}
-        <header style={{
-          backgroundColor: '#FFFFFF',
-          borderBottom: '1px solid var(--border)',
-          padding: '0.75rem 1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          position: 'sticky',
-          top: 0,
-          zIndex: 50
-        }}>
-          {/* Left: Global Search or Context */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, maxWidth: '340px' }}>
-            <div style={{
-              position: 'relative',
-              width: '100%'
-            }}>
-              <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                placeholder="Search ATM ID, location..."
-                className="form-input"
-                style={{ paddingLeft: '32px', height: '36px', fontSize: '0.82rem' }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    onNavigate('atm-network');
-                  }
-                }}
-              />
+      {/* Main content */}
+      <div className="ic-main-content">
+
+        {/* Top header */}
+        <header className="ic-topbar">
+
+          <div className="ic-topbar-left">
+            <button
+              className="ic-mobile-menu"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open navigation"
+            >
+              <Menu size={22} />
+            </button>
+
+            <div className="ic-page-heading">
+              <span className="ic-breadcrumb">WORKSPACE</span>
+              <h1>{PAGE_LABELS[currentPage]}</h1>
             </div>
           </div>
 
-          {/* Right Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
-            {/* Date Indicator Pill */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              padding: '0.35rem 0.75rem',
-              borderRadius: '9999px',
-              border: '1px solid #E2E8F0',
-              backgroundColor: '#F8FAFC',
-              fontSize: '0.75rem',
-              color: '#475569',
-              fontWeight: 500
-            }}>
-              <Calendar size={13} color="#64748B" />
-              <span>01 Oct 2026 - 15 Oct 2026</span>
+          <div className="ic-topbar-right">
+
+            <div className="ic-date-indicator">
+              <CalendarDays size={16} />
+              <span>
+                {new Date().toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                })}
+              </span>
             </div>
 
-            {/* Notification Bell */}
-            <div style={{
-              position: 'relative',
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              border: '1px solid #E2E8F0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#64748B'
-            }}>
-              <Bell size={17} />
-              <div style={{
-                position: 'absolute',
-                top: '7px',
-                right: '8px',
-                width: '7px',
-                height: '7px',
-                borderRadius: '50%',
-                backgroundColor: '#DC2626'
-              }} />
-            </div>
-
-            {/* Admin Profile Pill */}
-            <div
-              onClick={() => onNavigate('settings')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.55rem',
-                padding: '0.25rem 0.6rem 0.25rem 0.25rem',
-                borderRadius: '9999px',
-                border: '1px solid #E2E8F0',
-                cursor: 'pointer',
-                backgroundColor: '#FFFFFF'
-              }}
+            <button
+              className="ic-user-profile"
+              onClick={() => handleNavigation('settings')}
+              title="Open account settings"
             >
-              <div style={{
-                width: '30px',
-                height: '30px',
-                borderRadius: '50%',
-                backgroundColor: '#1E293B',
-                color: '#FFFFFF',
-                fontWeight: 700,
-                fontSize: '0.75rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                AD
+              <div className="ic-user-avatar">{initials}</div>
+
+              <div className="ic-user-info">
+                <strong>{currentUser?.name || 'Admin'}</strong>
+                <span>{currentUser?.role || 'Administrator'}</span>
               </div>
-              <div style={{ textAlign: 'left', lineHeight: 1.15 }}>
-                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#0F172A' }}>
-                  {currentUser?.name || 'Admin'}
-                </div>
-                <div style={{ fontSize: '0.68rem', color: '#64748B' }}>
-                  {currentUser?.role || 'Administrator'}
-                </div>
-              </div>
-            </div>
+
+              <ChevronRight size={15} className="ic-profile-arrow" />
+            </button>
           </div>
         </header>
 
-        {/* Page Content */}
-        <main style={{ padding: '1.5rem', flex: 1 }}>
+        {/* Page content */}
+        <main className="ic-page-content">
           {children}
         </main>
+
       </div>
     </div>
   );

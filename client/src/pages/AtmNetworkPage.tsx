@@ -1,5 +1,18 @@
+
 import React, { useEffect, useState } from 'react';
-import { Search, Filter, RotateCcw, ExternalLink, RefreshCw } from 'lucide-react';
+import {
+  Search,
+  RotateCcw,
+  ExternalLink,
+  RefreshCw,
+  MapPin,
+  Landmark,
+  Wallet,
+  Activity,
+  Building2,
+  SlidersHorizontal
+} from 'lucide-react';
+
 import { api } from '../lib/api';
 import { ATM } from '../types';
 import { formatINR } from '../lib/formatters';
@@ -12,15 +25,20 @@ interface AtmNetworkPageProps {
   onNavigate: (page: PageId, extraParam?: string) => void;
 }
 
-export const AtmNetworkPage: React.FC<AtmNetworkPageProps> = ({ onNavigate }) => {
+export const AtmNetworkPage: React.FC<AtmNetworkPageProps> = ({
+  onNavigate
+}) => {
   const [atms, setAtms] = useState<ATM[]>([]);
   const [cities, setCities] = useState<string[]>([]);
+
   const [total, setTotal] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize] = useState<number>(5);
 
   const [search, setSearch] = useState<string>('');
+  const [appliedSearch, setAppliedSearch] = useState<string>('');
+
   const [selectedCity, setSelectedCity] = useState<string>('All Cities');
   const [selectedRisk, setSelectedRisk] = useState<string>('All Risk Levels');
   const [selectedStatus, setSelectedStatus] = useState<string>('All Status');
@@ -28,35 +46,30 @@ export const AtmNetworkPage: React.FC<AtmNetworkPageProps> = ({ onNavigate }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadCities();
-  }, []);
-
-  useEffect(() => {
-    loadAtms();
-  }, [currentPage, selectedCity, selectedRisk, selectedStatus]);
-
   const loadCities = async () => {
     try {
       const res = await api.getCities();
       setCities(res);
     } catch {
-      // fallback
+      // City filters remain usable with the default option.
     }
   };
 
   const loadAtms = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await api.getAtms({
-        search: search.trim() || undefined,
+        search: appliedSearch.trim() || undefined,
         city: selectedCity !== 'All Cities' ? selectedCity : undefined,
-        risk_level: selectedRisk !== 'All Risk Levels' ? selectedRisk : undefined,
+        risk_level:
+          selectedRisk !== 'All Risk Levels' ? selectedRisk : undefined,
         status: selectedStatus !== 'All Status' ? selectedStatus : undefined,
         page: currentPage,
         page_size: pageSize
       });
+
       setAtms(res.items);
       setTotal(res.total);
       setTotalPages(res.total_pages);
@@ -67,177 +80,342 @@ export const AtmNetworkPage: React.FC<AtmNetworkPageProps> = ({ onNavigate }) =>
     }
   };
 
+  useEffect(() => {
+    loadCities();
+  }, []);
+
+  useEffect(() => {
+    loadAtms();
+  }, [
+    currentPage,
+    selectedCity,
+    selectedRisk,
+    selectedStatus,
+    appliedSearch
+  ]);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    loadAtms();
+    setAppliedSearch(search);
   };
 
   const handleReset = () => {
     setSearch('');
+    setAppliedSearch('');
     setSelectedCity('All Cities');
     setSelectedRisk('All Risk Levels');
     setSelectedStatus('All Status');
     setCurrentPage(1);
   };
 
+  const handleRefresh = () => {
+    loadAtms();
+  };
+
+  const activeFilters = [
+    selectedCity !== 'All Cities',
+    selectedRisk !== 'All Risk Levels',
+    selectedStatus !== 'All Status',
+    appliedSearch.trim() !== ''
+  ].filter(Boolean).length;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Page Header */}
-      <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.2rem' }}>
-          ATM Network
-        </h1>
-        <p style={{ fontSize: '0.84rem', color: '#64748B' }}>
-          View and manage all ATMs in the network
-        </p>
+    <div className="ic-atm-page">
+
+      {/* Header */}
+      <div className="ic-atm-page-header">
+        <div>
+          <div className="ic-atm-eyebrow">
+            <Activity size={14} />
+            NETWORK MANAGEMENT
+          </div>
+
+          <h1>ATM Network</h1>
+
+          <p>
+            Monitor your ATM network, track cash availability and
+            identify high-risk machines.
+          </p>
+        </div>
+
+        <button
+          className="ic-atm-refresh"
+          onClick={handleRefresh}
+          disabled={loading}
+        >
+          <RefreshCw size={16} className={loading ? 'ic-atm-spin' : ''} />
+          Refresh Data
+        </button>
       </div>
 
-      {/* Filter Bar */}
-      <div className="card" style={{ padding: '0.9rem 1.25rem' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '0.75rem'
-        }}>
-          {/* Dropdown Filters */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      {/* Summary Cards */}
+      <div className="ic-atm-stats">
+
+        <div className="ic-atm-stat-card">
+          <div className="ic-atm-stat-top">
+            <span>Total ATMs</span>
+            <div className="ic-atm-stat-icon blue">
+              <Landmark size={19} />
+            </div>
+          </div>
+          <h2>{loading ? '—' : total.toLocaleString('en-IN')}</h2>
+          <p>Matching network records</p>
+        </div>
+
+        <div className="ic-atm-stat-card">
+          <div className="ic-atm-stat-top">
+            <span>Active Filters</span>
+            <div className="ic-atm-stat-icon purple">
+              <SlidersHorizontal size={19} />
+            </div>
+          </div>
+          <h2>{activeFilters}</h2>
+          <p>Currently applied filters</p>
+        </div>
+
+        <div className="ic-atm-stat-card">
+          <div className="ic-atm-stat-top">
+            <span>Available Cities</span>
+            <div className="ic-atm-stat-icon cyan">
+              <MapPin size={19} />
+            </div>
+          </div>
+          <h2>{cities.length || '—'}</h2>
+          <p>Cities in the available city list</p>
+        </div>
+
+        <div className="ic-atm-stat-card">
+          <div className="ic-atm-stat-top">
+            <span>Current Page</span>
+            <div className="ic-atm-stat-icon green">
+              <Building2 size={19} />
+            </div>
+          </div>
+          <h2>{currentPage} / {totalPages}</h2>
+          <p>Network records pagination</p>
+        </div>
+
+      </div>
+
+      {/* Filters */}
+      <div className="ic-atm-filter-panel">
+
+        <div className="ic-atm-filter-heading">
+          <div>
+            <SlidersHorizontal size={17} />
+            <h3>Filter ATM Network</h3>
+          </div>
+
+          <button
+            className="ic-atm-reset"
+            onClick={handleReset}
+          >
+            <RotateCcw size={14} />
+            Reset Filters
+          </button>
+        </div>
+
+        <div className="ic-atm-filter-controls">
+
+          <div className="ic-atm-filter-field">
+            <label>City</label>
             <select
               value={selectedCity}
-              onChange={e => { setSelectedCity(e.target.value); setCurrentPage(1); }}
-              className="form-select"
-              style={{ width: '150px', fontSize: '0.82rem' }}
+              onChange={e => {
+                setSelectedCity(e.target.value);
+                setCurrentPage(1);
+              }}
             >
               <option value="All Cities">All Cities</option>
-              {cities.map(c => (
-                <option key={c} value={c}>{c}</option>
+              {cities.map(city => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
               ))}
             </select>
+          </div>
 
+          <div className="ic-atm-filter-field">
+            <label>Risk Level</label>
             <select
               value={selectedRisk}
-              onChange={e => { setSelectedRisk(e.target.value); setCurrentPage(1); }}
-              className="form-select"
-              style={{ width: '150px', fontSize: '0.82rem' }}
+              onChange={e => {
+                setSelectedRisk(e.target.value);
+                setCurrentPage(1);
+              }}
             >
               <option value="All Risk Levels">All Risk Levels</option>
               <option value="HIGH">High Risk</option>
               <option value="MEDIUM">Medium Risk</option>
               <option value="LOW">Low Risk</option>
             </select>
+          </div>
 
+          <div className="ic-atm-filter-field">
+            <label>ATM Status</label>
             <select
               value={selectedStatus}
-              onChange={e => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-              className="form-select"
-              style={{ width: '140px', fontSize: '0.82rem' }}
+              onChange={e => {
+                setSelectedStatus(e.target.value);
+                setCurrentPage(1);
+              }}
             >
               <option value="All Status">All Status</option>
               <option value="Active">Active</option>
               <option value="Maintenance">Maintenance</option>
             </select>
-
-            <button
-              onClick={handleReset}
-              className="btn-secondary"
-              style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem' }}
-            >
-              <RotateCcw size={14} />
-              Reset
-            </button>
           </div>
 
-          {/* Search Box */}
-          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.5rem', width: '260px' }}>
-            <div style={{ position: 'relative', width: '100%' }}>
-              <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+          <form
+            className="ic-atm-search-form"
+            onSubmit={handleSearchSubmit}
+          >
+            <label>Search ATM</label>
+            <div className="ic-atm-search-box">
+              <Search size={16} />
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search ATM ID, location..."
-                className="form-input"
-                style={{ paddingLeft: '32px', height: '36px', fontSize: '0.82rem' }}
+                placeholder="ATM ID or location..."
               />
+              <button type="submit" aria-label="Search ATMs">
+                <Search size={16} />
+              </button>
             </div>
           </form>
+
         </div>
       </div>
 
-      {/* Interactive Map View */}
-      <AtmNetworkMap
-        atms={atms}
-        onSelectAtm={(id) => onNavigate('atm-details', id)}
-      />
+      {/* Map */}
+      <div className="ic-atm-map-section">
+        <div className="ic-atm-section-heading">
+          <div>
+            <span className="ic-atm-section-icon">
+              <MapPin size={18} />
+            </span>
+            <div>
+              <h3>ATM Network Map</h3>
+              <p>Explore ATM locations on the interactive map</p>
+            </div>
+          </div>
+          <span className="ic-atm-map-count">
+            {atms.length} ATM records on this page
+          </span>
+        </div>
+
+        <div className="ic-atm-map-content">
+          <AtmNetworkMap
+            atms={atms}
+            onSelectAtm={(id) => onNavigate('atm-details', id)}
+          />
+        </div>
+      </div>
 
       {/* ATM Table */}
-      <div className="card" style={{ padding: '0.75rem 1.25rem' }}>
+      <div className="ic-atm-table-panel">
+
+        <div className="ic-atm-table-heading">
+          <div>
+            <h3>ATM Directory</h3>
+            <p>Detailed information about your ATM network</p>
+          </div>
+
+          <span className="ic-atm-record-count">
+            {total.toLocaleString('en-IN')} records
+          </span>
+        </div>
+
         {loading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: '#64748B' }}>
-            <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.75rem auto' }} />
-            <div>Loading ATMs...</div>
+          <div className="ic-atm-state">
+            <RefreshCw size={25} className="ic-atm-spin" />
+            <p>Loading ATM network data...</p>
           </div>
         ) : error ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#DC2626' }}>
-            <div>{error}</div>
-            <button onClick={loadAtms} className="btn-secondary" style={{ marginTop: '0.75rem' }}>Retry</button>
+          <div className="ic-atm-state error">
+            <Activity size={25} />
+            <p>{error}</p>
+            <button onClick={handleRefresh}>Try Again</button>
           </div>
         ) : atms.length === 0 ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: '#64748B' }}>
-            <div>No ATMs match the selected filters.</div>
-            <button onClick={handleReset} className="btn-secondary" style={{ marginTop: '0.75rem' }}>Reset Filters</button>
+          <div className="ic-atm-state">
+            <Landmark size={30} />
+            <h3>No ATMs Found</h3>
+            <p>No ATMs match the selected filters.</p>
+            <button onClick={handleReset}>Reset Filters</button>
           </div>
         ) : (
           <>
-            <div className="data-table-container">
-              <table className="data-table">
+            <div className="ic-atm-table-wrapper">
+              <table className="ic-atm-table">
                 <thead>
                   <tr>
                     <th>ATM ID</th>
                     <th>Location</th>
                     <th>City</th>
                     <th>Current Balance</th>
-                    <th>Risk</th>
+                    <th>Risk Level</th>
                     <th>Status</th>
                     <th>Action</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {atms.map(atm => (
                     <tr key={atm.atm_id}>
                       <td>
-                        <strong style={{ color: '#1E293B' }}>{atm.atm_id}</strong>
+                        <div className="ic-atm-id">
+                          <span className="ic-atm-id-icon">
+                            <Landmark size={15} />
+                          </span>
+                          {atm.atm_id}
+                        </div>
                       </td>
-                      <td>{atm.atm_name}</td>
+
+                      <td>
+                        <div className="ic-atm-location">
+                          <MapPin size={14} />
+                          {atm.atm_name}
+                        </div>
+                      </td>
+
                       <td>{atm.city}</td>
-                      <td style={{ fontWeight: 600 }}>{formatINR(atm.current_balance)}</td>
+
+                      <td>
+                        <div className="ic-atm-balance">
+                          <Wallet size={14} />
+                          {formatINR(atm.current_balance)}
+                        </div>
+                      </td>
+
                       <td>
                         <RiskBadge risk={atm.risk_level} />
                       </td>
+
                       <td>
-                        <span className={atm.status === 'Active' ? 'badge-status-active' : 'badge-status-pending'}>
+                        <span
+                          className={
+                            atm.status === 'Active'
+                              ? 'ic-atm-status active'
+                              : 'ic-atm-status maintenance'
+                          }
+                        >
+                          <span className="ic-atm-status-dot" />
                           {atm.status || 'Active'}
                         </span>
                       </td>
+
                       <td>
                         <button
-                          onClick={() => onNavigate('atm-details', atm.atm_id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#2563EB',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            fontSize: '0.82rem',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.2rem'
-                          }}
+                          className="ic-atm-view-button"
+                          onClick={() =>
+                            onNavigate('atm-details', atm.atm_id)
+                          }
                         >
-                          View
-                          <ExternalLink size={12} />
+                          View Details
+                          <ExternalLink size={13} />
                         </button>
                       </td>
                     </tr>
@@ -246,17 +424,28 @@ export const AtmNetworkPage: React.FC<AtmNetworkPageProps> = ({ onNavigate }) =>
               </table>
             </div>
 
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalRecords={total}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              entityName="ATMs"
-            />
+            <div className="ic-atm-pagination">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={total}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                entityName="ATMs"
+              />
+            </div>
           </>
         )}
+
       </div>
+
+      <div className="ic-atm-footer">
+        <Activity size={14} />
+        <span>
+          ATM information is loaded from the IntelliCash backend.
+        </span>
+      </div>
+
     </div>
   );
 };
